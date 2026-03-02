@@ -24,7 +24,7 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
             'popup-use-custom-width', 'popup-custom-width', 'player-filter-mode', 'player-filter-list','hide-text',
             'fallback-art-path','popup-show-visualizer', 'popup-hide-pill-visualizer','compatibility-delay',
             'popup-follow-custom-bg', 'popup-follow-custom-text','action-hover', 'hover-delay', 'selected-player-bus',
-            'popup-show-player-selector','show-pill-border','invert-scroll-direction','always-show-pill'
+            'popup-show-player-selector','show-pill-border','invert-scroll-direction','always-show-pill','popup-hide-on-leave'
         ];
 
         // =========================================
@@ -331,6 +331,18 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
         settings.bind('popup-enable-shadow', popShadowToggle, 'active', Gio.SettingsBindFlags.DEFAULT);
         popShadowRow.add_suffix(popShadowToggle);
         popupGroup.add(popShadowRow);
+        
+        const hideOnLeaveRow = new Adw.ActionRow({
+            title: _('Close on Mouse Leave'),
+            subtitle: _('Automatically hide the pop-up when you move the cursor away')
+        });
+        const hideOnLeaveToggle = new Gtk.Switch({
+            active: settings.get_boolean('popup-hide-on-leave'),
+            valign: Gtk.Align.CENTER
+        });
+        settings.bind('popup-hide-on-leave', hideOnLeaveToggle, 'active', Gio.SettingsBindFlags.DEFAULT);
+        hideOnLeaveRow.add_suffix(hideOnLeaveToggle);
+        popupGroup.add(hideOnLeaveRow);
         
         const popCustomBgRow = new Adw.ActionRow({
             title: _('Follow Custom Background Color'),
