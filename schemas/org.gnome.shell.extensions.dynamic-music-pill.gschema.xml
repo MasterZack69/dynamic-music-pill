@@ -80,6 +80,10 @@
       <default>true</default>
       <summary>Rotate Vinyl in Pop-up</summary>
     </key>
+    <key name="visualizer-bars" type="i">
+      <default>4</default>
+      <range min="2" max="32"/>
+    </key>
     <key name="popup-enable-shadow" type="b">
       <default>true</default>
       <summary>Enable shadow for the pop-up menu</summary>
@@ -250,7 +254,7 @@
     </key>
     <key name="visualizer-style" type="i">
       <default>2</default>
-      <range min="0" max="2"/>
+      <range min="0" max="3"/>
     </key>
     <key name="border-radius" type="i">
       <default>22</default>
