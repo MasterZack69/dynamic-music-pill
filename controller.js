@@ -160,11 +160,11 @@ export class MusicController {
         global.display.disconnectObject(this);
         this._settings.disconnectObject(this);
         
-        if (this._injectTimeout) { GLib.source_remove(this._injectTimeout); this._injectTimeout = null; }
-        if (this._watchdog) { GLib.source_remove(this._watchdog); this._watchdog = null; }
-        if (this._recheckTimer) { GLib.source_remove(this._recheckTimer); this._recheckTimer = null; }
-        if (this._updateTimeoutId) { GLib.source_remove(this._updateTimeoutId); this._updateTimeoutId = null; }
-        if (this._retryArtTimer) { GLib.source_remove(this._retryArtTimer); this._retryArtTimer = null; }
+        if (this._injectTimeout) { GLib.Source.remove(this._injectTimeout); this._injectTimeout = null; }
+        if (this._watchdog) { GLib.Source.remove(this._watchdog); this._watchdog = null; }
+        if (this._recheckTimer) { GLib.Source.remove(this._recheckTimer); this._recheckTimer = null; }
+        if (this._updateTimeoutId) { GLib.Source.remove(this._updateTimeoutId); this._updateTimeoutId = null; }
+        if (this._retryArtTimer) { GLib.Source.remove(this._retryArtTimer); this._retryArtTimer = null; }
         
         if (this._ownerId) {
             this._connection.signal_unsubscribe(this._ownerId);
@@ -213,10 +213,26 @@ export class MusicController {
     }
     
     openSettings() {
-        // Megnyitja az extension beállításait
         if (this._extension) {
             this._extension.openPreferences();
         }
+    }
+
+    _getCustomAppMapping() {
+        let mapping = {};
+        if (this._settings) {
+            try {
+                let mapStr = this._settings.get_string('app-name-mapping') || '';
+                let pairs = mapStr.split(',');
+                for (let pair of pairs) {
+                    let parts = pair.split(':');
+                    if (parts.length === 2) {
+                        mapping[parts[0].trim().toLowerCase()] = parts[1].trim().toLowerCase();
+                    }
+                }
+            } catch (e) {}
+        }
+        return mapping;
     }
 
     closeApp() {
@@ -224,6 +240,7 @@ export class MusicController {
         if (!player) return;
 
         let busName = player._busName;
+        
         this._connection.call(
             busName, 
             '/org/mpris/MediaPlayer2', 
@@ -235,9 +252,17 @@ export class MusicController {
             }
         );
 
-        let killTarget = player._desktopEntry;
+        let parts = busName.replace('org.mpris.MediaPlayer2.', '').split('.');
+        
+        let rawBus = parts[0].toLowerCase();
+        let fullBusId = parts.join('.').toLowerCase();
+        let identity = (player._identity || '').toLowerCase();
+        
+        let customMapping = this._getCustomAppMapping();
+        let killTarget = customMapping[fullBusId] || customMapping[rawBus] || customMapping[identity] || player._desktopEntry;
+        if (killTarget === 'enter_app_id_here') killTarget = player._desktopEntry; 
+
         if (!killTarget) {
-            let parts = busName.replace('org.mpris.MediaPlayer2.', '').split('.');
             if (['org', 'com', 'net', 'io'].includes(parts[0]) && parts.length >= 3) {
                 killTarget = parts.slice(0, 3).join('.');
             } else {
@@ -247,14 +272,20 @@ export class MusicController {
 
         if (killTarget) {
             killTarget = killTarget.toLowerCase();
-            try {
-                if (killTarget.includes('.')) {
-                    Gio.Subprocess.new(['flatpak', 'kill', killTarget], Gio.SubprocessFlags.NONE);
-                } 
-                Gio.Subprocess.new(['pkill', '-f', killTarget], Gio.SubprocessFlags.NONE);
-            } catch (e) {
-                console.debug("[Dynamic Music Pill] Failed to hard kill: " + killTarget);
-            }
+            
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
+                if (!this._proxies.has(busName)) return GLib.SOURCE_REMOVE;
+                
+                try {
+                    if (killTarget.includes('.')) {
+                        Gio.Subprocess.new(['flatpak', 'kill', killTarget], Gio.SubprocessFlags.NONE);
+                    } 
+                    Gio.Subprocess.new(['pkill', '-f', killTarget], Gio.SubprocessFlags.NONE);
+                } catch (e) {
+                    console.debug("[Dynamic Music Pill] Failed to hard kill: " + killTarget);
+                }
+                return GLib.SOURCE_REMOVE;
+            });
         }
     }
 
@@ -263,18 +294,55 @@ export class MusicController {
         if (!player) return;
 
         this._connection.call(
-        player._busName, '/org/mpris/MediaPlayer2', 'org.mpris.MediaPlayer2', 'Raise',
-        null, null, Gio.DBusCallFlags.NONE, -1, null,
-        (conn, res) => { conn.call_finish(res); }
-    );
+            player._busName, '/org/mpris/MediaPlayer2', 'org.mpris.MediaPlayer2', 'Raise',
+            null, null, Gio.DBusCallFlags.NONE, -1, null,
+            (conn, res) => { try { conn.call_finish(res); } catch (e) {} }
+        );
 
-        let rawBus = player._busName.replace('org.mpris.MediaPlayer2.', '').split('.')[0].toLowerCase();
         let appSystem = Shell.AppSystem.get_default();
         let runningApps = appSystem.get_running();
 
+        let busNameParts = player._busName.replace('org.mpris.MediaPlayer2.', '').split('.');
+        let rawBus = busNameParts[0].toLowerCase();
+        let fullBusId = busNameParts.join('.').toLowerCase();
+        
+        let desktopEntry = (player._desktopEntry || '').toLowerCase();
+        let identity = (player._identity || '').toLowerCase();
+
+        let customMapping = this._getCustomAppMapping();
+        let customTarget = customMapping[fullBusId] || customMapping[rawBus] || customMapping[identity] || null;
+        if (customTarget === 'enter_app_id_here') customTarget = null;
+
         for (let app of runningApps) {
-            let appName = app.get_name().toLowerCase();
             let appId = app.get_id().toLowerCase();
+            let appName = app.get_name().toLowerCase();
+            let isMatch = false;
+
+            if (customTarget && (appId.includes(customTarget) || appName.includes(customTarget))) {
+                isMatch = true; 
+            } else if (!customTarget && desktopEntry && appId.includes(desktopEntry)) {
+                isMatch = true; 
+            } else if (!customTarget && identity && appName === identity) {
+                isMatch = true;
+            } else if (!customTarget && appId.includes(fullBusId)) {
+                isMatch = true;
+            }
+
+            if (isMatch) {
+                let windows = app.get_windows();
+                if (windows && windows.length > 0) {
+                    if (Main.activateWindow) Main.activateWindow(windows[0]);
+                    else windows[0].activate(global.get_current_time());
+                    return;
+                }
+                app.activate();
+                return;
+            }
+        }
+
+        for (let app of runningApps) {
+            let appId = app.get_id().toLowerCase();
+            let appName = app.get_name().toLowerCase();
 
             if (appId.includes(rawBus) || appName.includes(rawBus)) {
                 let windows = app.get_windows();
@@ -387,7 +455,7 @@ export class MusicController {
     }
 
     _queueInject() {
-        if (this._injectTimeout) GLib.source_remove(this._injectTimeout);
+        if (this._injectTimeout) GLib.Sourc.remove(this._injectTimeout);
         this._injectTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
             this._inject();
             this._injectTimeout = null;
@@ -594,7 +662,7 @@ export class MusicController {
                                                     this._triggerUpdate();
                                                 }
                                             }
-                                        } catch (e) {}
+                                        } catch (e) { console.debug(e.message); }
                                     }
                                 );
                             }
@@ -628,7 +696,7 @@ export class MusicController {
                               p._desktopEntry = v instanceof GLib.Variant ? v.unpack() : v;
                             }
                           }
-                        } catch (e) {}
+                        } catch (e) { console.debug(e.message); }
                       }
 
                     );
@@ -652,7 +720,7 @@ export class MusicController {
                                         p._lastPositionTime = Date.now();
                                     }
                                 }
-                            } catch (e) {}
+                            } catch (e) { console.debug(e.message); }
                             this._triggerUpdate();
                         }
                     );
@@ -720,7 +788,7 @@ export class MusicController {
                     if (this._pill) this._pill.setLyric(lrc);
                 }
             } catch (e) {
-                log(`[DynamicMusicPill] Lyric error: ${e}`);
+                console.debug(`[DynamicMusicPill] Lyric error: ${e}`);
             }
             invocation.return_value(null);
         }
@@ -765,7 +833,7 @@ export class MusicController {
                 this._startLyricsTimer();
             }
         } catch (e) {
-            log(`[DynamicMusicPill] Network lyrics fetch error: ${e}`);
+            console.debug(`[DynamicMusicPill] Network lyrics fetch error: ${e}`);
             this._fetchedLyricsData = null;
         }
     }
@@ -780,7 +848,7 @@ export class MusicController {
 
     _stopLyricsTimer() {
         if (this._lyricsTimerId) {
-            GLib.source_remove(this._lyricsTimerId);
+            GLib.Source.remove(this._lyricsTimerId);
             this._lyricsTimerId = null;
         }
     }
@@ -873,7 +941,7 @@ export class MusicController {
 
     _updateUI() {
         if (this._recheckTimer) {
-            GLib.source_remove(this._recheckTimer);
+            GLib.Source.remove(this._recheckTimer);
             this._recheckTimer = null;
         }
 
@@ -1065,6 +1133,36 @@ export class MusicController {
     togglePlayback() { let p = this._getActivePlayer(); if (p) p.PlayPauseRemote(); }
     next() { this._lastActionTime = Date.now(); let p = this._getActivePlayer(); if (p) p.NextRemote(); }
     previous() { this._lastActionTime = Date.now(); let p = this._getActivePlayer(); if (p) p.PreviousRemote(); }
+    
+    switchPlayer(isNext) {
+        let proxiesArr = Array.from(this._proxies.keys());
+        if (proxiesArr.length <= 1) return;
+
+        let currentBus = this._settings.get_string('selected-player-bus');
+        if (!currentBus || !this._proxies.has(currentBus)) {
+            let active = this._getActivePlayer();
+            currentBus = active ? active._busName : proxiesArr[0];
+        }
+
+        let currentIndex = proxiesArr.indexOf(currentBus);
+        if (currentIndex === -1) currentIndex = 0;
+
+        if (isNext) {
+            currentIndex = (currentIndex + 1) % proxiesArr.length;
+        } else {
+            currentIndex = (currentIndex - 1 + proxiesArr.length) % proxiesArr.length;
+        }
+
+        let nextBus = proxiesArr[currentIndex];
+        
+        this._settings.set_string('selected-player-bus', nextBus);
+        this._updateUI();
+        
+        if (this._playerMenu && this._playerMenu.visible) {
+            this._playerMenu.populate();
+        }
+    }
+    
     changeVolume(up) {
             let mixer = getMixerControl();
             if (!mixer) return;
