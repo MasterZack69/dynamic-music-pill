@@ -25,7 +25,8 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
             'fallback-art-path','popup-show-visualizer', 'popup-hide-pill-visualizer','compatibility-delay',
             'popup-follow-custom-bg', 'popup-follow-custom-text','action-hover', 'hover-delay', 'selected-player-bus',
             'popup-show-player-selector','show-pill-border','invert-scroll-direction','always-show-pill','popup-hide-on-leave',
-            'visualizer-bars','enable-lyrics','app-name-mapping', 'lyric-fade-enable', 'lyric-fade-duration'
+            'visualizer-bars','enable-lyrics','app-name-mapping', 'lyric-fade-enable', 'lyric-fade-duration','visualizer-bar-width', 'visualizer-height',
+            'popup-visualizer-bars', 'popup-visualizer-bar-width', 'popup-visualizer-height'
         ];
 
         // =========================================
@@ -487,7 +488,30 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
         hidePillVisRow.add_suffix(hidePillVisToggle);
         settings.bind('popup-show-visualizer', hidePillVisRow, 'sensitive', Gio.SettingsBindFlags.DEFAULT);
         popupGroup.add(hidePillVisRow);
+	
+	const popVisBarsRow = new Adw.SpinRow({
+            title: _('Popup Visualizer Bar Count'),
+            adjustment: new Gtk.Adjustment({ lower: 2, upper: 64, step_increment: 1 })
+        });
+        settings.bind('popup-visualizer-bars', popVisBarsRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        settings.bind('popup-show-visualizer', popVisBarsRow, 'sensitive', Gio.SettingsBindFlags.DEFAULT);
+        popupGroup.add(popVisBarsRow);
 
+        const popVisWidthRow = new Adw.SpinRow({
+            title: _('Popup Visualizer Bar Width'),
+            adjustment: new Gtk.Adjustment({ lower: 1, upper: 20, step_increment: 1 })
+        });
+        settings.bind('popup-visualizer-bar-width', popVisWidthRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        settings.bind('popup-show-visualizer', popVisWidthRow, 'sensitive', Gio.SettingsBindFlags.DEFAULT);
+        popupGroup.add(popVisWidthRow);
+
+        const popVisHeightRow = new Adw.SpinRow({
+            title: _('Popup Visualizer Height'),
+            adjustment: new Gtk.Adjustment({ lower: 20, upper: 200, step_increment: 5 })
+        });
+        settings.bind('popup-visualizer-height', popVisHeightRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        settings.bind('popup-show-visualizer', popVisHeightRow, 'sensitive', Gio.SettingsBindFlags.DEFAULT);
+        popupGroup.add(popVisHeightRow);
         
         popupPage.add(popupGroup);
         window.add(popupPage);
@@ -534,6 +558,22 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
         });
         settings.bind('visualizer-bars', visBarsRow, 'value', Gio.SettingsBindFlags.DEFAULT);
         lookGroup.add(visBarsRow);
+        
+        const visWidthRow = new Adw.SpinRow({
+            title: _('Visualizer Bar Width'),
+            subtitle: _('Thickness of individual bars (pixels)'),
+            adjustment: new Gtk.Adjustment({ lower: 1, upper: 10, step_increment: 1 })
+        });
+        settings.bind('visualizer-bar-width', visWidthRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        lookGroup.add(visWidthRow);
+
+        const visHeightRow = new Adw.SpinRow({
+            title: _('Visualizer Height'),
+            subtitle: _('Maximum height of the visualizer (auto-clamped to pill height)'),
+            adjustment: new Gtk.Adjustment({ lower: 10, upper: 100, step_increment: 2 })
+        });
+        settings.bind('visualizer-height', visHeightRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        lookGroup.add(visHeightRow);
 
         const visPaddingRow = new Adw.SpinRow({
             title: _('Visualizer Margin'),
