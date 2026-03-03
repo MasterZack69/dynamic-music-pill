@@ -1,3 +1,4 @@
+import Cairo from 'cairo';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
@@ -151,6 +152,8 @@ class ScrollLabel extends St.Widget {
     
     this._idleResizeId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
         this._idleResizeId = null;
+        if (!this || (this.is_finalized && this.is_finalized()) || !this.get_parent()) 
+            return GLib.SOURCE_REMOVE;
         if (!this.get_parent()) 
             return GLib.SOURCE_REMOVE;
 
@@ -298,10 +301,246 @@ class ScrollLabel extends St.Widget {
     }
 });
 
-export const WaveformVisualizer = GObject.registerClass(
-class WaveformVisualizer extends St.BoxLayout {
-    _init(height = 22, barCount = 4, barWidth = 3, barHeight = 20, spacing = 3) {
-        super._init({ vertical: false, style: `spacing: ${spacing}px;`, y_align: Clutter.ActorAlign.CENTER, x_align: Clutter.ActorAlign.END });
+const CavaVisualizer = GObject.registerClass(
+class CavaVisualizer extends St.DrawingArea {
+    _init(settings) {
+        super._init({ y_expand: true, x_align: Clutter.ActorAlign.FILL, y_align: Clutter.ActorAlign.FILL });
+        this._settings = settings;
+        this._barCount = this._settings.get_int('visualizer-bars') || 10;
+        
+        this._prevHeights = new Array(this._barCount).fill(1);
+        this._peakValues = new Array(this._barCount).fill(0);
+        this._bins = new Array(this._barCount).fill(0);
+        this._silentFrames = 0;
+        
+        this._colorR = 1.0; this._colorG = 1.0; this._colorB = 1.0;
+        this._isPlaying = false;
+        
+        // Szélesség: sávok száma * 4px
+        this.set_width(this._barCount * 4);
+        
+        this.connect('repaint', this._onRepaint.bind(this));
+        this.connect('destroy', this._cleanup.bind(this));
+    }
+
+    _updateBarCount() {
+        this._barCount = this._settings.get_int('visualizer-bars') || 10;
+        this._prevHeights = new Array(this._barCount).fill(1);
+        this._peakValues = new Array(this._barCount).fill(0);
+        this._bins = new Array(this._barCount).fill(0);
+        this.set_width(this._barCount * 4);
+        
+        if (this._isPlaying) {
+            this._stopCava();
+            this._startCava();
+        }
+    }
+
+    setColor(c) {
+        let r = 255, g = 255, b = 255;
+        if (c && typeof c.r === 'number' && !isNaN(c.r)) r = Math.min(255, c.r + 100);
+        if (c && typeof c.g === 'number' && !isNaN(c.g)) g = Math.min(255, c.g + 100);
+        if (c && typeof c.b === 'number' && !isNaN(c.b)) b = Math.min(255, c.b + 100);
+        
+        this._colorR = r / 255.0;
+        this._colorG = g / 255.0;
+        this._colorB = b / 255.0;
+        this.queue_repaint();
+    }
+
+    setPlaying(playing) {
+        this._isPlaying = playing;
+        if (playing) {
+            this._startCava();
+        } else {
+            this._stopCava();
+            this._prevHeights.fill(1);
+            this._peakValues.fill(0);
+            this.queue_repaint();
+        }
+    }
+
+    _startCava() {
+        if (this._process) return;
+        try {
+            if (!GLib.find_program_in_path('cava')) return;
+
+            let tmpConfig = `${GLib.get_tmp_dir()}/dynamic-pill-cava-${GLib.get_monotonic_time()}`;
+            let cfg = `[general]\nbars = ${this._barCount}\nframerate = 60\nautosens = 1\n` +
+                      `[input]\nmethod = pulse\nsource = auto\n` +
+                      `[output]\nmethod = raw\nbit_format = 16bit\nchannels = mono\nraw_target = /dev/stdout\n`;
+
+            GLib.file_set_contents(tmpConfig, new TextEncoder().encode(cfg));
+            this._tmpConfigPath = tmpConfig;
+
+            this._process = Gio.Subprocess.new(['cava', '-p', tmpConfig], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            this._stdout = this._process.get_stdout_pipe();
+            this._cancellable = new Gio.Cancellable();
+            this._bufferUsed = 0;
+            this._rawBuffer = new Uint8Array(8192);
+
+            this._readStdoutBytes();
+        } catch (e) {
+            console.error("[Dynamic Music Pill] Cava error: " + e.message);
+        }
+    }
+
+    _readStdoutBytes() {
+        if (!this._stdout || !this._cancellable || this._cancellable.is_cancelled()) return;
+
+        let readSize = Math.max(4096, this._barCount * 2 * 4);
+        this._stdout.read_bytes_async(readSize, GLib.PRIORITY_DEFAULT, this._cancellable, (stream, res) => {
+            try {
+                // GC védelem: ha már dispose-olva lett az objektum, ne folytassuk
+                if (!this || (this.is_finalized && this.is_finalized())) return;
+
+                let gbytes = stream.read_bytes_finish(res);
+                if (!gbytes) return;
+
+                let chunk = gbytes.get_data();
+                if (!chunk || chunk.length === 0) {
+                    this._readStdoutBytes();
+                    return;
+                }
+
+                let needed = this._bufferUsed + chunk.length;
+                if (needed > this._rawBuffer.length) {
+                    let newBuffer = new Uint8Array(Math.max(needed, this._rawBuffer.length * 2));
+                    newBuffer.set(this._rawBuffer.subarray(0, this._bufferUsed));
+                    this._rawBuffer = newBuffer;
+                }
+                this._rawBuffer.set(chunk, this._bufferUsed);
+                this._bufferUsed += chunk.length;
+
+                let frameSize = this._barCount * 2;
+                let totalFrames = Math.floor(this._bufferUsed / frameSize);
+
+                if (totalFrames > 0) {
+                    let lastFrameOffset = (totalFrames - 1) * frameSize;
+                    let dv = new DataView(this._rawBuffer.buffer, this._rawBuffer.byteOffset + lastFrameOffset, frameSize);
+
+                    let maxVal = 1;
+                    for (let i = 0; i < this._barCount; i++) {
+                        let v = dv.getInt16(i * 2, true);
+                        v = Math.abs(v);
+                        this._bins[i] = v;
+                        if (v > maxVal) maxVal = v;
+                    }
+
+                    if (maxVal < 500) {
+                        this._silentFrames++;
+                    } else {
+                        this._silentFrames = 0;
+                    }
+
+                    if (this._silentFrames >= 30) {
+                        this._prevHeights.fill(1);
+                        this._peakValues.fill(0);
+                    } else {
+                        let invMaxVal = maxVal > 0 ? 1 / maxVal : 0;
+                        let totalHeight = this.get_height() || 24;
+                        let maxHalfHeight = totalHeight / 2;
+
+                        for (let i = 0; i < this._barCount; i++) {
+                            let v = this._bins[i];
+                            let norm = v * invMaxVal;
+                            let target = Math.max(1, Math.round(Math.sqrt(norm) * maxHalfHeight));
+                            if (this._silentFrames === 0 && v > 0 && target < 3) target = 3;
+
+                            let prev = this._prevHeights[i];
+                            let alpha = target < prev ? 0.6 : 0.95;
+                            let height = Math.round(prev * (1 - alpha) + target * alpha);
+                            this._prevHeights[i] = height;
+
+                            if (height > this._peakValues[i]) {
+                                this._peakValues[i] = height;
+                            } else {
+                                this._peakValues[i] -= this._peakValues[i] * 0.06;
+                            }
+                        }
+                    }
+
+                    this._rawBuffer.copyWithin(0, totalFrames * frameSize, this._bufferUsed);
+                    this._bufferUsed -= totalFrames * frameSize;
+                    this.queue_repaint();
+                }
+                this._readStdoutBytes();
+            } catch (e) { }
+        });
+    }
+
+    _stopCava() {
+        if (this._cancellable) {
+            this._cancellable.cancel();
+            this._cancellable = null;
+        }
+        if (this._process) {
+            try { this._process.force_exit(); } catch (e) { }
+            this._process = null;
+        }
+        if (this._stdout) {
+            try { this._stdout.close(null); } catch (e) { }
+            this._stdout = null;
+        }
+        if (this._tmpConfigPath) {
+            try {
+                let file = Gio.File.new_for_path(this._tmpConfigPath);
+                if (file.query_exists(null)) file.delete(null);
+            } catch (e) { }
+            this._tmpConfigPath = null;
+        }
+    }
+
+    _onRepaint() {
+        let cr = this.get_context();
+        let width = this.get_width();
+        let height = this.get_height();
+        if (width <= 0 || height <= 0) return;
+
+        cr.setOperator(Cairo.Operator.CLEAR);
+        cr.paint();
+        cr.setOperator(Cairo.Operator.OVER);
+
+        let barWidth = 2;
+        let gap = 2;
+        let totalBarWidth = this._barCount * (barWidth + gap) - gap;
+        let offsetX = (width - totalBarWidth) / 2;
+        let centerY = height / 2;
+        let isSilent = this._silentFrames >= 30;
+
+        for (let i = 0; i < this._barCount; i++) {
+            let halfHeight = Math.max(1, this._prevHeights[i]);
+            let x = offsetX + i * (barWidth + gap);
+            let edgeFade = 1 - (Math.abs(i - (this._barCount - 1) / 2) / ((this._barCount - 1) / 2)) * 0.35;
+            let barAlpha = isSilent ? 0.3 * edgeFade : 1.0 * edgeFade;
+
+            cr.setSourceRGBA(this._colorR, this._colorG, this._colorB, barAlpha);
+            cr.rectangle(x, centerY - halfHeight, barWidth, halfHeight * 2);
+            cr.fill();
+
+            if (!isSilent) {
+                let peak = Math.max(1, this._peakValues[i]);
+                cr.setSourceRGBA(this._colorR, this._colorG, this._colorB, barAlpha * 0.55);
+                cr.rectangle(x, centerY - peak - 1, barWidth, 1);
+                cr.fill();
+                cr.rectangle(x, centerY + peak, barWidth, 1);
+                cr.fill();
+            }
+        }
+        cr.$dispose();
+    }
+
+    _cleanup() {
+        this._stopCava();
+    }
+});
+
+const SimulatedVisualizer = GObject.registerClass(
+class SimulatedVisualizer extends St.BoxLayout {
+    _init(height = 22, settings) {
+        super._init({ style: `spacing: 3px;`, y_align: Clutter.ActorAlign.CENTER, x_align: Clutter.ActorAlign.END });
+        this.layout_manager.orientation = Clutter.Orientation.HORIZONTAL;
+        this._settings = settings;
         this.set_height(height);
         this._bars = [];
         this._color = '255,255,255';
@@ -309,16 +548,25 @@ class WaveformVisualizer extends St.BoxLayout {
         this._isPlaying = false;
         this._timerId = null;
 
-        for (let i = 0; i < barCount; i++) {
+        this._updateBarCount();
+        this.connect('destroy', this._cleanup.bind(this));
+    }
+
+    _updateBarCount() {
+        this.destroy_all_children();
+        this._bars = [];
+        let count = this._settings.get_int('visualizer-bars') || 4;
+        let barWidth = 3;
+        let barHeight = this.height > 40 ? 60 : 20;
+
+        for (let i = 0; i < count; i++) {
             let bar = new St.Widget({ style_class: 'visualizer-bar' });
             bar.set_size(barWidth, barHeight);
-            bar.set_pivot_point(0.5, 1.0);
+            bar.set_pivot_point(0.5, this._mode === 2 ? 0.5 : 1.0);
             this.add_child(bar);
             this._bars.push(bar);
         }
         this._updateBarsCss();
-
-        this.connect('destroy', this._cleanup.bind(this));
     }
 
     _cleanup() {
@@ -347,14 +595,15 @@ class WaveformVisualizer extends St.BoxLayout {
     setPlaying(playing) {
         if (this._isPlaying === playing) return;
         this._isPlaying = playing;
-
         this._updateBarsCss();
-
         if (this._timerId) { GLib.source_remove(this._timerId); this._timerId = null; }
 
         if (playing && this._mode !== 0) {
             this._timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => {
-                if (!this.get_parent()) return GLib.SOURCE_REMOVE;
+                // GC védelem:
+                if (!this || this.is_finalized && this.is_finalized() || !this.get_parent()) 
+                    return GLib.SOURCE_REMOVE;
+                
                 if (!this.mapped) return GLib.SOURCE_CONTINUE;
                 let t = Date.now() / 250;
                 this._updateVisuals(t);
@@ -368,36 +617,94 @@ class WaveformVisualizer extends St.BoxLayout {
     _updateBarsCss() {
         let opacity = this._isPlaying ? 1.0 : 0.4;
         let css = `background-color: rgba(${this._color}, ${opacity}); border-radius: 2px;`;
-        this._bars.forEach(bar => {
-            bar.set_style(css);
-        });
+        this._bars.forEach(bar => { bar.set_style(css); });
     }
-
 
     _updateVisuals(t) {
         if (!this.get_parent()) return;
-
         if (!this._isPlaying) {
             this._bars.forEach(bar => bar.scale_y = 0.2);
             return;
         }
-
         let speeds = [1.1, 1.6, 1.3, 1.8, 1.5, 1.2, 1.7, 1.4];
-
         this._bars.forEach((bar, idx) => {
             let scaleY = 0.2;
-            
             if (this._mode === 1) {
                 let wave = (Math.sin(t - idx * 1.0) + 1) / 2;
                 scaleY = 0.3 + (wave * 0.7);
-            }
-            else if (this._mode === 2) {
+            } else if (this._mode === 2) {
                 let pulse = (Math.sin(t * speeds[idx % speeds.length]) + 1) / 2;
                 scaleY = 0.3 + (pulse * 0.7);
             }
-
             bar.scale_y = scaleY;
         });
+    }
+});
+
+export const WaveformVisualizer = GObject.registerClass(
+class WaveformVisualizer extends St.Bin {
+    _init(height = 22, settings) {
+        super._init({ y_align: Clutter.ActorAlign.CENTER, x_align: Clutter.ActorAlign.END, y_expand: true });
+        this._settings = settings;
+        this.set_height(height);
+        
+        this._simulated = new SimulatedVisualizer(height, this._settings);
+        this._cava = null;
+        this._mode = 1;
+        this._isPlaying = false;
+        
+        this.set_child(this._simulated);
+
+        this._settings.connectObject('changed::visualizer-bars', () => {
+            this._simulated._updateBarCount();
+            if (this._cava) this._cava._updateBarCount();
+            
+            let parent = this.get_parent();
+            while (parent) {
+                if (parent._updateDimensions) {
+                    parent._updateDimensions();
+                    break;
+                }
+                parent = parent.get_parent();
+            }
+        }, this);
+    }
+
+    setMode(m) {
+        if (m === 3 && !GLib.find_program_in_path('cava')) {
+            Main.notify('Dynamic Music Pill', 'Please install "cava" for real-time mode.');
+            m = 2;
+        }
+
+        this._mode = m;
+        if (m === 3) {
+            if (!this._cava) {
+                this._cava = new CavaVisualizer(this._settings);
+                if (this._lastColor) this._cava.setColor(this._lastColor);
+            }
+            if (this.get_child() !== this._cava) this.set_child(this._cava);
+            this._cava.setPlaying(this._isPlaying);
+            this._simulated.setPlaying(false);
+        } else {
+            if (this.get_child() !== this._simulated) {
+                this.set_child(this._simulated);
+                if (this._cava) this._cava.setPlaying(false);
+            }
+            this._simulated.setMode(m);
+            this._simulated.setPlaying(this._isPlaying);
+        }
+    }
+
+    setColor(c) {
+        this._lastColor = c;
+        this._simulated.setColor(c);
+        if (this._cava) this._cava.setColor(c);
+    }
+
+    setPlaying(playing) {
+        this._isPlaying = playing;
+        if (this._mode === 3 && this._cava) this._cava.setPlaying(playing);
+        else this._simulated.setPlaying(playing);
     }
 });
 
@@ -498,7 +805,7 @@ class ExpandedPlayer extends St.Widget {
         this._artistLabel = new ScrollLabel('expanded-artist', this._settings);
 
 
-        this._visualizer = new WaveformVisualizer(80, 4, 6, 80, 5);
+        this._visualizer = new WaveformVisualizer(80, this._settings);
         this._visBin = new St.Bin({ 
             child: this._visualizer, 
             x_align: Clutter.ActorAlign.END, 
@@ -1361,7 +1668,7 @@ class MusicPill extends St.Widget {
 
     this._body.add_child(this._textWrapper);
 
-    this._visualizer = new WaveformVisualizer();
+    this._visualizer = new WaveformVisualizer(22, this._settings);
     this._visBin = new St.Bin({
         child: this._visualizer,
         style: 'margin-left: 8px;',
@@ -1882,15 +2189,17 @@ class MusicPill extends St.Widget {
             this._fadeRight.set_width(10);
             
             if (!tabletSetting || this._gameModeActive) {
-                let artMargin = (width < 180 && !hideText) ? 4 : 8;
+                let artMargin = hideText ? 0 : ((width < 180) ? 4 : 8);
                 if (isSidePanel) this._artBin.set_style(`margin-bottom: ${artMargin}px; margin-right: 0px;`);
                 else this._artBin.set_style(`margin-right: ${artMargin}px; margin-bottom: 0px;`);
             } else {
-                this._artBin.set_style(isSidePanel ? 'margin-bottom: 2px; margin-right: 0px;' : 'margin-right: 2px; margin-bottom: 0px;');
+                let artMargin = hideText ? 0 : 2;
+                this._artBin.set_style(isSidePanel ? `margin-bottom: ${artMargin}px; margin-right: 0px;` : `margin-right: ${artMargin}px; margin-bottom: 0px;`);
             }
         } else {
             this._visBin.show();
-            let sideMargin = this._settings.get_int('visualizer-padding');
+            let sideMargin = hideText ? 6 : this._settings.get_int('visualizer-padding');
+            
             if (isSidePanel) {
                 this._visBin.set_style(`margin-top: ${sideMargin}px; margin-left: 0px;`);
                 this._visBin.set_height(-1);
@@ -1947,28 +2256,40 @@ class MusicPill extends St.Widget {
                 this._body.set_width(targetWidth);
             }
         } else {
-            if (this._settings.get_boolean('pill-dynamic-width') || hideText) {
-                let currentWidth = this._body.width;
-                this._body.remove_transition('width');
+                if (this._settings.get_boolean('pill-dynamic-width') || hideText) {
+                    let currentWidth = this._body.width;
+                    this._body.remove_transition('width');
+                    
+                    let elementsW = this._padX * 2;
+                    let currentSideMargin = hideText ? 4 : this._settings.get_int('visualizer-padding');
+
+                    if (this._artBin.visible) {
+                        let isVisHidden = ((width < 220 && !hideText) || visStyle === 0 || forceHideVis);
+                        let artM = 0;
+                        if (isVisHidden) {
+                            artM = hideText ? 0 : ((!tabletSetting || this._gameModeActive) ? ((width < 180) ? 4 : 8) : 2);
+                        } else {
+                            artM = currentSideMargin;
+                        }
+                        elementsW += finalArtSize + artM;
+                    }
+                    if (this._tabletControls.visible) elementsW += this._tabletControls.get_preferred_width(-1)[1];
+                    if (this._visBin.visible) elementsW += this._visBin.get_preferred_width(-1)[1] + currentSideMargin;
+                    
+                    let titleW = hideText ? 0 : this._titleScroll._label1.get_preferred_width(-1)[1];
+                    let artistW = (hideText || !this._artistScroll.visible) ? 0 : this._artistScroll._label1.get_preferred_width(-1)[1];
+                    
+                    elementsW += Math.max(titleW, artistW) + (hideText ? 0 : 12);
+                    let monitor = Main.layoutManager.findMonitorForActor(this);
+                    let maxAvailableW = monitor ? monitor.width - 40 : 800;
                 
-                let elementsW = this._padX * 2;
-                if (this._artBin.visible) {
-                    let artM = (!tabletSetting || this._gameModeActive) ? (((confWidth < 220 && !hideText) || visStyle === 0) ? ((confWidth < 180 && !hideText) ? 4 : 8) : this._settings.get_int('visualizer-padding')) : 2;
-                    elementsW += finalArtSize + artM;
+                    targetWidth = hideText ? elementsW : Math.min(Math.max(elementsW, 120), confWidth);
+                    targetWidth = Math.min(targetWidth, maxAvailableW);
+                    
+                    if (currentWidth > 0 && Math.abs(targetWidth - currentWidth) < 10) {
+                        targetWidth = currentWidth;
+                    }
                 }
-                if (this._tabletControls.visible) elementsW += this._tabletControls.get_preferred_width(-1)[1];
-                if (this._visBin.visible) elementsW += this._visBin.get_preferred_width(-1)[1] + this._settings.get_int('visualizer-padding');
-                
-                let titleW = hideText ? 0 : this._titleScroll._label1.get_preferred_width(-1)[1];
-                let artistW = (hideText || !this._artistScroll.visible) ? 0 : this._artistScroll._label1.get_preferred_width(-1)[1];
-                
-                elementsW += Math.max(titleW, artistW) + (hideText ? 0 : 12);
-                targetWidth = hideText ? Math.max(elementsW, 60) : Math.min(Math.max(elementsW, 120), confWidth);
-                
-                if (currentWidth > 0 && Math.abs(targetWidth - currentWidth) < 10) {
-                    targetWidth = currentWidth;
-                }
-            }
 
             this._targetWidth = targetWidth;
             this._targetHeight = targetHeight;
