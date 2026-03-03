@@ -2406,7 +2406,11 @@ class MusicPill extends St.Widget {
         }
 
         let alwaysShow = this._settings.get_boolean('always-show-pill');
-	let shouldKeepOpen = alwaysShow || anyPlaying;
+        
+        let manualBus = this._settings.get_string('selected-player-bus');
+        let isManuallySelected = (manualBus !== '' && busName === manualBus);
+        
+        let shouldKeepOpen = alwaysShow || anyPlaying || isManuallySelected;
 
         if (shouldKeepOpen) {
             this._origTitle = tempTitle;
