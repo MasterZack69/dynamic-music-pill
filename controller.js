@@ -9,6 +9,8 @@ import { smartUnpack } from './utils.js';
 import { getMixerControl } from 'resource:///org/gnome/shell/ui/status/volume.js';
 import { MusicPill, ExpandedPlayer, PlayerSelectorMenu } from './ui.js';
 import { LyricsClient } from './LyricsClient.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+const _ = Extension.lookupByURL(import.meta.url).gettext;
 
 const LYRIC_IFACE_NAME = "org.gnome.Shell.TrayLyric";
 const LYRIC_OBJECT_PATH = "/org/gnome/Shell/TrayLyric";
@@ -992,8 +994,8 @@ export class MusicController {
             }
             
             if (!title && active._busName) {
-                title = active._identity || "Unknown Player";
-                artist = "No active media";
+                title = active._identity || _("Unknown Player");
+		artist = _("No active media");
             }
 
             let rawName = active._busName || "";
@@ -1282,7 +1284,7 @@ export class MusicController {
             this._playerMenu.populate();
         }
 
-        let labelText = 'Auto (Smart)';
+        let labelText = _('Auto (Smart)');
         let iconName = 'emblem-system-symbolic';
 
         if (nextBus !== '') {
