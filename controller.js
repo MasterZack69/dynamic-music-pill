@@ -9,8 +9,8 @@ import { smartUnpack } from './utils.js';
 import { getMixerControl } from 'resource:///org/gnome/shell/ui/status/volume.js';
 import { MusicPill, ExpandedPlayer, PlayerSelectorMenu } from './ui.js';
 import { LyricsClient } from './LyricsClient.js';
-import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
-const _ = Extension.lookupByURL(import.meta.url).gettext;
+import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+
 
 const LYRIC_IFACE_NAME = "org.gnome.Shell.TrayLyric";
 const LYRIC_OBJECT_PATH = "/org/gnome/Shell/TrayLyric";
