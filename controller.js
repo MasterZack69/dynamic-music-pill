@@ -10,6 +10,7 @@ import { getMixerControl } from 'resource:///org/gnome/shell/ui/status/volume.js
 import { MusicPill, ExpandedPlayer, PlayerSelectorMenu } from './ui.js';
 import { LyricsClient } from './LyricsClient.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { SharedVisualizerEngine } from './visualizerEngine.js';
 
 
 const LYRIC_IFACE_NAME = "org.gnome.Shell.TrayLyric";
@@ -208,6 +209,7 @@ export class MusicController {
         this._proxies.clear();
         
         this._updateDefaultPlayerVisibility(true);
+        SharedVisualizerEngine.destroy();
     }
     
     performAction(action) {
