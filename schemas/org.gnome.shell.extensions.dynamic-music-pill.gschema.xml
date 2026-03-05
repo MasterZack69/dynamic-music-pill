@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.dynamic-music-pill" path="/org/gnome/shell/extensions/dynamic-music-pill/" gettext-domain="dynamic-music-pill">
+    <key name="edge-margin" type="i">
+      <default>6</default>
+      <range min="0" max="50"/>
+      <summary>Edge Margin (Outer Padding)</summary>
+      <description>Distance before the album art and after the visualizer.</description>
+    </key>
     <key name="always-show-pill" type="b">
       <default>false</default>
       <summary>Always Show Pill</summary>
@@ -72,7 +78,7 @@
 	<summary>Comma separated list of players (e.g. firefox,chrome,spotify)</summary>
     </key>
     <key name="visualizer-padding" type="i">
-      <default>12</default>
+      <default>10</default>
       <summary>Visualizer Margin</summary>
       <description>Spacing between the text and the visualizer.</description>
     </key>
