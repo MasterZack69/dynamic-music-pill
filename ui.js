@@ -11,6 +11,117 @@ import { formatTime, getAverageColor, smartUnpack } from './utils.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { SharedVisualizerEngine } from './visualizerEngine.js';
 
+const TextFadeEffect = GObject.registerClass(
+class TextFadeEffect extends Clutter.ShaderEffect {
+    _init(fadePixels = 32) {
+        super._init({ 'shader-type': 1 }); 
+        this._fadePixels = fadePixels;
+        this._enableLeft = 1.0;
+        this._enableRight = 1.0;
+        this._animId = null;
+
+        this.set_shader_source(`
+            uniform sampler2D tex;
+            uniform float width;
+            uniform float fade_pixels;
+            uniform float enable_left;
+            uniform float enable_right;
+
+            void main(void) {
+                vec2 uv = cogl_tex_coord_in[0].xy;
+                vec4 color = texture2D(tex, uv);
+
+                float pos_x = uv.x * width;
+
+                float left_fade = smoothstep(0.0, fade_pixels, pos_x);
+                float right_fade = smoothstep(0.0, fade_pixels, width - pos_x);
+
+                float left_alpha = mix(1.0, left_fade, enable_left);
+                float right_alpha = mix(1.0, right_fade, enable_right);
+
+                float alpha = min(left_alpha, right_alpha);
+
+                cogl_color_out = vec4(color.rgb * alpha, color.a * alpha);
+            }
+        `);
+    }
+
+    setFadePixels(pixels) {
+        this._fadePixels = pixels;
+    }
+
+    setEdges(left, right, animate = false) {
+        let targetLeft = left ? 1.0 : 0.0;
+        let targetRight = right ? 1.0 : 0.0;
+
+        if (this._animId) {
+            GLib.Source.remove(this._animId);
+            this._animId = null;
+        }
+
+        if (!animate) {
+            this._enableLeft = targetLeft;
+            this._enableRight = targetRight;
+            let actor = this.get_actor();
+            if (actor) actor.queue_redraw(); 
+            return;
+        }
+
+        let startLeft = this._enableLeft;
+        let startRight = this._enableRight;
+        let startTime = Date.now();
+        let duration = 300; 
+
+        this._animId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => {
+            let actor = this.get_actor();
+            if (!actor) {
+                this._animId = null;
+                return GLib.SOURCE_REMOVE;
+            }
+
+            let now = Date.now();
+            let p = Math.min(1.0, (now - startTime) / duration);
+            let t = p * (2 - p);
+
+            this._enableLeft = startLeft + (targetLeft - startLeft) * t;
+            this._enableRight = startRight + (targetRight - startRight) * t;
+
+            actor.queue_redraw();
+
+            if (p >= 1.0) {
+                this._animId = null;
+                return GLib.SOURCE_REMOVE;
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    vfunc_paint_target(paint_node, paint_context) {
+        let actor = this.get_actor();
+        if (actor) {
+            let widthVal = new GObject.Value();
+            widthVal.init(GObject.TYPE_FLOAT);
+            widthVal.set_float(actor.get_width());
+            this.set_uniform_value('width', widthVal);
+
+            let fadeVal = new GObject.Value();
+            fadeVal.init(GObject.TYPE_FLOAT);
+            fadeVal.set_float(this._fadePixels);
+            this.set_uniform_value('fade_pixels', fadeVal);
+
+            let leftVal = new GObject.Value();
+            leftVal.init(GObject.TYPE_FLOAT);
+            leftVal.set_float(this._enableLeft);
+            this.set_uniform_value('enable_left', leftVal);
+
+            let rightVal = new GObject.Value();
+            rightVal.init(GObject.TYPE_FLOAT);
+            rightVal.set_float(this._enableRight);
+            this.set_uniform_value('enable_right', rightVal);
+        }
+        super.vfunc_paint_target(paint_node, paint_context);
+    }
+});
 
 export const CrossfadeArt = GObject.registerClass(
 class CrossfadeArt extends St.Widget {
@@ -134,6 +245,28 @@ class ScrollLabel extends St.Widget {
         if (this._label1) this._label1.set_style(css);
         if (this._label2) this._label2.set_style(css);
     }
+    
+    _setFadeOutEffect(enableLeft = true, enableRight = true, animate = false) {
+        if (!this._label1) return;
+        
+        let fontDesc = this._label1.get_theme_node().get_font();
+        let fadeWidth = (fontDesc.get_size() / Pango.SCALE) + 4;
+        
+        if (!this._fadeEffect) {
+            this._fadeEffect = new TextFadeEffect(fadeWidth);
+            this.add_effect(this._fadeEffect);
+        }
+        
+        this._fadeEffect.setFadePixels(fadeWidth);
+        this._fadeEffect.setEdges(enableLeft, enableRight, animate);
+    }
+
+    _clearFadeOutEffect() {
+        if (this._fadeEffect) {
+            this.remove_effect(this._fadeEffect);
+            this._fadeEffect = null;
+        }
+    }
 
     _cleanup() {
         this._stopAnimation();
@@ -179,6 +312,7 @@ class ScrollLabel extends St.Widget {
                 this._label2.hide();
                 this._separator.hide();
             } else if (!needsScroll) {
+                this._stopAnimation(true); 
                 this._container.x_align = Clutter.ActorAlign.CENTER;
             }
             
@@ -236,6 +370,7 @@ class ScrollLabel extends St.Widget {
 
     _stopAnimation(resetPosition = true) {
         this._isScrolling = false;
+        this._clearFadeOutEffect();
         this._container.remove_all_transitions();
         if (resetPosition) this._container.translation_x = 0;
         if (this._scrollTimer) { GLib.Source.remove(this._scrollTimer); this._scrollTimer = null; }
@@ -257,6 +392,7 @@ class ScrollLabel extends St.Widget {
                 this._startInfiniteScroll(textWidth);
             }
         } else {
+            this._stopAnimation(true);
             this._container.x_align = Clutter.ActorAlign.CENTER;
         }
     }
@@ -271,14 +407,21 @@ class ScrollLabel extends St.Widget {
         
         const loop = () => {
             if (this._gameMode || !this.get_parent()) return; 
+            
+            this._setFadeOutEffect(false, true, true);
+
             if (this._scrollTimer) GLib.Source.remove(this._scrollTimer);
             this._scrollTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
                 this._scrollTimer = null; 
                 if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
+
+                this._setFadeOutEffect(true, true, true);
+
                 this._container.ease({
                     translation_x: -distance, duration: duration, mode: Clutter.AnimationMode.LINEAR,
                     onStopped: (isFinished) => {
                         if (!isFinished || this._gameMode) return; 
+
                         this._container.translation_x = 0;
                         loop();
                     }
@@ -296,31 +439,42 @@ class ScrollLabel extends St.Widget {
         this._separator.hide();
 
         let boxWidth = this.get_allocation_box().get_width();
-        const distance = textWidth - boxWidth;
-        if (distance <= 5) return;
+        const distance = textWidth - boxWidth + 10; 
+        const duration = (distance / 30) * 1000;
 
-        const totalDurationMs = this._lyricTime * 1000;
-        const pauseTime = (boxWidth / textWidth) * totalDurationMs * 0.5;
-        const tailTime = totalDurationMs * 0.2;
-        const scrollDuration = totalDurationMs - pauseTime - tailTime;
+        const loop = () => {
+            if (this._gameMode || !this.get_parent()) return;
 
-        if (scrollDuration <= 0) return;
+            this._setFadeOutEffect(false, true, true);
 
-        if (this._scrollTimer) GLib.Source.remove(this._scrollTimer);
-        this._scrollTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(100, pauseTime), () => {
-            this._scrollTimer = null;
-            if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
-            this._container.ease({
-                translation_x: -distance,
-                duration: scrollDuration,
-                mode: Clutter.AnimationMode.LINEAR,
-                onStopped: () => {
-                    this._isScrolling = false;
-                    this._lyricFinished = true;
-                }
+            if (this._scrollTimer) GLib.Source.remove(this._scrollTimer);
+            this._scrollTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+                this._scrollTimer = null;
+                if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
+
+                this._setFadeOutEffect(true, true, true);
+
+                this._container.ease({
+                    translation_x: -distance,
+                    duration: duration,
+                    mode: Clutter.AnimationMode.LINEAR,
+                    onStopped: (isFinished) => {
+                        if (!isFinished || this._gameMode) return;
+                        
+                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+                            if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
+                            
+                            this._container.translation_x = 0;
+                            loop();
+                            return GLib.SOURCE_REMOVE;
+                        });
+                    }
+                });
+                return GLib.SOURCE_REMOVE;
             });
-            return GLib.SOURCE_REMOVE;
-        });
+        };
+        
+        loop();
     }
 });
 
@@ -466,7 +620,7 @@ class CavaVisualizer extends St.DrawingArea {
 const SimulatedVisualizer = GObject.registerClass(
 class SimulatedVisualizer extends St.BoxLayout {
     _init(settings, isPopup = false) {
-        super._init({ style: `spacing: 2px;`, y_align: Clutter.ActorAlign.CENTER, x_align: Clutter.ActorAlign.END });
+        super._init({ style: `spacing: 2px;`, y_align: Clutter.ActorAlign.FILL, x_align: Clutter.ActorAlign.END });
         this.layout_manager.orientation = Clutter.Orientation.HORIZONTAL;
         this._settings = settings;
         this._isPopup = isPopup;
@@ -487,7 +641,7 @@ class SimulatedVisualizer extends St.BoxLayout {
         let barWidth = this._isPopup ? (this._settings.get_int('popup-visualizer-bar-width') || 2) : (this._settings.get_int('visualizer-bar-width') || 2);
 
         for (let i = 0; i < count; i++) {
-            let bar = new St.Widget({ style_class: 'visualizer-bar' });
+            let bar = new St.Widget({ style_class: 'visualizer-bar', y_expand: true, y_align: Clutter.ActorAlign.FILL });
             bar.set_width(barWidth);
             bar.set_pivot_point(0.5, this._mode === 2 ? 0.5 : 1.0);
             this.add_child(bar);
@@ -1669,24 +1823,6 @@ class MusicPill extends St.Widget {
     this._textBox.add_child(this._artistScroll);
     this._textWrapper.add_child(this._textBox);
 
-    this._fadeLeft = new St.Widget({
-        x_expand: false, y_expand: true,
-        x_align: Clutter.ActorAlign.START,
-        y_align: Clutter.ActorAlign.FILL,
-    });
-    this._fadeLeft.set_width(30);
-    this._fadeLeft.set_z_position(9999);
-    this._textWrapper.add_child(this._fadeLeft);
-
-    this._fadeRight = new St.Widget({
-        x_expand: false, y_expand: true,
-        x_align: Clutter.ActorAlign.END,
-        y_align: Clutter.ActorAlign.FILL,
-    });
-    this._fadeRight.set_width(30);
-    this._fadeRight.set_z_position(9999);
-    this._textWrapper.add_child(this._fadeRight);
-
     this._body.add_child(this._textWrapper);
 
     this._visualizer = new WaveformVisualizer(24, this._settings, false);
@@ -1836,6 +1972,10 @@ class MusicPill extends St.Widget {
     }, this);
 
     // Listeners
+    this._settings.connectObject('changed::edge-margin', () => { 
+        this._updateDimensions(); 
+        this._applyStyle(this._displayedColor.r, this._displayedColor.g, this._displayedColor.b); 
+    }, this);
     this._settings.connectObject('changed::hide-text', () => this._updateDimensions(), this);
     this._settings.connectObject('changed::pill-dynamic-width', () => { this._updateDimensions(); if(this._isActiveState) 		this._body.ease({ width: this._targetWidth, duration: 300, mode: Clutter.AnimationMode.EASE_OUT_QUAD }); }, this);
     this._settings.connectObject('changed::inline-artist', () => this._updateTextDisplay(true), this);
@@ -2133,8 +2273,7 @@ class MusicPill extends St.Widget {
             this._padY = Math.max(2, Math.min(8, rawPadY));
         }
 
-        let rawPadX = Math.floor((width - 160) * (10 / 140) + 4);
-        this._padX = Math.max(4, Math.min(14, rawPadX));
+        this._padX = this._settings.get_int('edge-margin');
 
         if (isSidePanel) {
             let temp = this._padX;
@@ -2212,8 +2351,6 @@ class MusicPill extends St.Widget {
             this._visBin.set_width(0);
             this._visBin.set_height(0);
             this._visBin.set_style('margin: 0px;');
-            this._fadeLeft.set_width(10);
-            this._fadeRight.set_width(10);
             
             if (!tabletSetting || this._gameModeActive) {
                 let artMargin = hideText ? 0 : ((width < 180) ? 4 : 8);
@@ -2238,8 +2375,6 @@ class MusicPill extends St.Widget {
                 this._visBin.set_height(-1);
                 this._artBin.set_style(`margin-right: ${sideMargin}px; margin-bottom: 0px;`);
             }
-            this._fadeLeft.set_width(30);
-            this._fadeRight.set_width(30);
         }
 
         let customTextStr = this._settings.get_boolean('use-custom-colors') ? `rgb(${this._settings.get_string('custom-text-color')})` : 'white';
@@ -2742,22 +2877,6 @@ class MusicPill extends St.Widget {
           this._lastBodyCss = css;
           this._body.set_style(css);
       }
-
-      let startColor = `rgba(${safeR}, ${safeG}, ${safeB}, ${alpha})`;
-      let endColor = `rgba(${safeR}, ${safeG}, ${safeB}, 0)`;
-
-      let gradientLeft = `background-image: linear-gradient(to right, ${startColor}, ${endColor});`;
-      if (this._lastLeftCss !== gradientLeft) {
-          this._lastLeftCss = gradientLeft;
-          this._fadeLeft.set_style(gradientLeft);
-      }
-
-      let gradientRight = `background-image: linear-gradient(to right, ${endColor}, ${startColor});`;
-      if (this._lastRightCss !== gradientRight) {
-          this._lastRightCss = gradientRight;
-          this._fadeRight.set_style(gradientRight);
-      }
-
       this._displayedColor = { r: safeDynR, g: safeDynG, b: safeDynB };
 
       if (this._controller && this._controller._expandedPlayer && this._controller._expandedPlayer.visible) {
