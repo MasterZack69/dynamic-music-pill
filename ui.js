@@ -1524,26 +1524,31 @@ class ExpandedPlayer extends St.Widget {
         }
     }
 
-    _startVinyl() {
+   _startVinyl() {
         if (!this._vinyl || !this._settings.get_boolean('popup-vinyl-rotate')) return;
         if (this._settings.get_boolean('popup-vinyl-square')) return;
         if (this._isSpinning) return;
         
         this._isSpinning = true;
 
+        let speedVal = this._settings.get_int('popup-vinyl-speed') || 10;
+        let durationFactor = 10 / speedVal; 
+        let initialDuration = Math.round(800 * durationFactor);
+        let loopDuration = Math.round(350000 * durationFactor);
+
         this._vinyl.remove_all_transitions();
         let currentAngle = this._vinyl.rotation_angle_z || 0;
 
         this._vinyl.ease({
             rotation_angle_z: currentAngle + 90,
-            duration: 800,
+            duration: initialDuration,
             mode: Clutter.AnimationMode.EASE_IN_QUAD,
             onStopped: (isFinished) => {
                 if (!isFinished || !this._isSpinning || !this._vinyl) return;
                 let nextAngle = this._vinyl.rotation_angle_z || 0;
                 this._vinyl.ease({
                     rotation_angle_z: nextAngle + 36000,
-                    duration: 350000,
+                    duration: loopDuration,
                     mode: Clutter.AnimationMode.LINEAR
                 });
             }
@@ -1554,12 +1559,16 @@ class ExpandedPlayer extends St.Widget {
         if (!this._vinyl || !this._isSpinning) return;
         this._isSpinning = false;
 
+        let speedVal = this._settings.get_int('popup-vinyl-speed') || 10;
+        let durationFactor = 10 / speedVal;
+        let stopDuration = Math.round(800 * durationFactor);
+
         let currentAngle = this._vinyl.rotation_angle_z || 0;
         this._vinyl.remove_all_transitions();
 
         this._vinyl.ease({
             rotation_angle_z: currentAngle + 90,
-            duration: 800,
+            duration: stopDuration,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onStopped: (isFinished) => {
                 if (isFinished && this._vinyl) {
