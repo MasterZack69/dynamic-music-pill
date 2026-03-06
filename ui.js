@@ -445,42 +445,36 @@ class ScrollLabel extends St.Widget {
         this._separator.hide();
 
         let boxWidth = this.get_allocation_box().get_width();
-        const distance = textWidth - boxWidth + 10; 
-        const duration = (distance / 30) * 1000;
-
-        const loop = () => {
-            if (this._gameMode || !this.get_parent()) return;
-
-            this._setFadeOutEffect(false, true, true);
-
-            if (this._scrollTimer) GLib.Source.remove(this._scrollTimer);
-            this._scrollTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
-                this._scrollTimer = null;
-                if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
-
-                this._setFadeOutEffect(true, true, true);
-
-                this._container.ease({
-                    translation_x: -distance,
-                    duration: duration,
-                    mode: Clutter.AnimationMode.LINEAR,
-                    onStopped: (isFinished) => {
-                        if (!isFinished || this._gameMode) return;
-                        
-                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
-                            if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
-                            
-                            this._container.translation_x = 0;
-                            loop();
-                            return GLib.SOURCE_REMOVE;
-                        });
-                    }
-                });
-                return GLib.SOURCE_REMOVE;
-            });
-        };
+        const distance = textWidth - boxWidth;
         
-        loop();
+        if (distance <= 5) return;
+
+        const totalDurationMs = this._lyricTime * 1000;
+        const pauseTime = (boxWidth / textWidth) * totalDurationMs * 0.5;
+        const tailTime = totalDurationMs * 0.2;
+        const scrollDuration = totalDurationMs - pauseTime - tailTime;
+
+        if (scrollDuration <= 0) return;
+
+        this._clearFadeOutEffect();
+
+        if (this._scrollTimer) GLib.Source.remove(this._scrollTimer);
+        
+        this._scrollTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(100, pauseTime), () => {
+            this._scrollTimer = null;
+            if (this._gameMode || !this.get_parent()) return GLib.SOURCE_REMOVE;
+            
+            this._container.ease({
+                translation_x: -distance,
+                duration: scrollDuration,
+                mode: Clutter.AnimationMode.LINEAR,
+                onStopped: () => {
+                    this._isScrolling = false;
+                    this._lyricFinished = true;
+                }
+            });
+            return GLib.SOURCE_REMOVE;
+        });
     }
 });
 
@@ -2353,8 +2347,10 @@ class MusicPill extends St.Widget {
         }
 
         let forceHideVis = this._isPopupOpen && this._settings.get_boolean('popup-hide-pill-visualizer') && this._settings.get_boolean('popup-show-visualizer');
+        
+        let isDynamic = this._settings.get_boolean('pill-dynamic-width');
 
-        if ((width < 220 && !hideText) || visStyle === 0 || forceHideVis) {
+        if ((width < 220 && !hideText && !isDynamic) || visStyle === 0 || forceHideVis) {
             this._visBin.hide();
             this._visBin.set_width(0);
             this._visBin.set_height(0);
