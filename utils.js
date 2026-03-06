@@ -36,3 +36,55 @@ export function formatTime(microSeconds) {
     let sec = seconds % 60;
     return `${min}:${sec < 10 ? '0' + sec : sec}`;
 }
+
+export function getClosestGnomeAccent(r, g, b) {
+    let rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+    let max = Math.max(rNorm, gNorm, bNorm), min = Math.min(rNorm, gNorm, bNorm);
+    let h = 0, s = 0, l = (max + min) / 2;
+
+    if (max !== min) {
+        let d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case rNorm: h = (gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0); break;
+            case gNorm: h = (bNorm - rNorm) / d + 2; break;
+            case bNorm: h = (rNorm - gNorm) / d + 4; break;
+        }
+        h *= 60;
+    }
+    s *= 100;
+    l *= 100;
+
+    if (s < 15 || l < 15 || l > 90) return 'slate';
+
+    const presets = {
+        'red': 0,
+        'orange': 30,
+        'yellow': 50,
+        'green': 120,
+        'teal': 170,
+        'blue': 210,
+        'purple': 280,
+        'pink': 330
+    };
+
+    let closest = 'blue';
+    let minDistance = Infinity;
+
+    for (const [name, targetHue] of Object.entries(presets)) {
+        let diff = Math.abs(h - targetHue);
+        let distance = Math.min(diff, 360 - diff);
+
+        if (distance < minDistance) {
+            minDistance = distance;
+            closest = name;
+        }
+    }
+    
+    let redDiff = Math.abs(h - 360);
+    if (redDiff < minDistance) {
+        closest = 'red';
+    }
+
+    return closest;
+}
