@@ -11,6 +11,7 @@ import { MusicPill, ExpandedPlayer, PlayerSelectorMenu } from './ui.js';
 import { LyricsClient } from './LyricsClient.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { SharedVisualizerEngine } from './visualizerEngine.js';
+import { initDTDModule } from './utils.js';
 
 
 const LYRIC_IFACE_NAME = "org.gnome.Shell.TrayLyric";
@@ -104,6 +105,7 @@ export class MusicController {
 
     enable() {
         this._createPill();
+        initDTDModule();
         
         global.display.connectObject('notify::focus-window', () => this._monitorGameMode(), this);
         this._settings.connectObject('changed::hide-default-player', () => this._updateDefaultPlayerVisibility(), this);
