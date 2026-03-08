@@ -7,7 +7,7 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import Pango from 'gi://Pango';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { formatTime, getAverageColor, smartUnpack, getClosestGnomeAccent } from './utils.js';
+import { formatTime, getAverageColor, smartUnpack, getClosestGnomeAccent, disableDashToDockAutohide, restoreDashToDockAutohide } from './utils.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { SharedVisualizerEngine } from './visualizerEngine.js';
 
@@ -1367,6 +1367,7 @@ class ExpandedPlayer extends St.Widget {
     }
 
     showFor(player, artUrl) {
+	disableDashToDockAutohide();
         this.setPlayer(player);
         this.visible = true;
         this.opacity = 0;
@@ -1408,6 +1409,7 @@ class ExpandedPlayer extends St.Widget {
     }
 
     hide() {
+	restoreDashToDockAutohide()
         this._stopTimer();
         this._stopVinyl();
         if (this._controller._pill) this._controller._pill._setPopupOpen(false);
@@ -3103,6 +3105,7 @@ class PlayerSelectorMenu extends St.Widget {
     }
 
     showMenu() {
+	disableDashToDockAutohide();
         this.populate();
         this.visible = true;
         this.opacity = 0;
@@ -3171,6 +3174,7 @@ class PlayerSelectorMenu extends St.Widget {
     }
     hide() {
         if (this._isHiding) return;
+        restoreDashToDockAutohide();
         
         if (this._leaveHideTimeoutId) {
             GLib.Source.remove(this._leaveHideTimeoutId);
