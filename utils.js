@@ -104,7 +104,9 @@ export function initDTDModule() {
 
 export function disableDashToDockAutohide() {
     try {
-        if (!_dtdDockManager) return;
+        if (!_dtdDockManager) initDTDModule(); 
+        if (!_dtdDockManager) return; 
+        
         if (dtdPopupOpenCount === 0) {
             for (const dock of _dtdDockManager._allDocks) {
                 dock.dash.requiresVisibility = true;
@@ -119,6 +121,8 @@ export function disableDashToDockAutohide() {
 
 export function restoreDashToDockAutohide() {
     try {
+        if (!_dtdDockManager) initDTDModule();
+        
         if (dtdPopupOpenCount > 0) dtdPopupOpenCount--;
         if (dtdPopupOpenCount === 0 && _dtdDockManager) {
             for (const dock of _dtdDockManager._allDocks) {
