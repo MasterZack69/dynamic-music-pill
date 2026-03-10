@@ -16,11 +16,11 @@ A dynamic, elegant, and highly customizable music widget for GNOME Shell. It bri
 
 ---
 <div align="center">
-  <a href="https://extensions.gnome.org/extension/9334/dynamic-music-pill/">
+  <a align="center" href="https://extensions.gnome.org/extension/9334/dynamic-music-pill/">
     <img alt="Get it on GNOME Extensions" height="150" src="https://raw.githubusercontent.com/andyholmes/gnome-shell-extensions-badge/master/get-it-on-ego.svg?sanitize=true"/>
   </a>
   &nbsp;&nbsp;&nbsp;
-  <a href="https://hosted.weblate.org/engage/dynamic-music-pill/">
+  <a align="center" href="https://hosted.weblate.org/engage/dynamic-music-pill/">
     <img alt="Translation status" height="300" src="https://hosted.weblate.org/widget/dynamic-music-pill/multi-auto.svg"/>
   </a>
 </div>
