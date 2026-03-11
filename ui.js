@@ -2426,6 +2426,10 @@ class MusicPill extends St.Widget {
 
         let forceHideVis = this._isPopupOpen && this._settings.get_boolean('popup-hide-pill-visualizer') && this._settings.get_boolean('popup-show-visualizer');
         
+        if (this._currentStatus === 'Stopped' && (!this._origTitle || this._origTitle === _('No Media') || this._origTitle === 'No Media')) {
+            forceHideVis = true;
+        }
+        
         let isDynamic = this._settings.get_boolean('pill-dynamic-width');
 
         if ((width < 220 && !hideText && !isDynamic) || visStyle === 0 || forceHideVis) {
@@ -2689,6 +2693,8 @@ class MusicPill extends St.Widget {
             
             this._currentStatus = 'Stopped';
             this._updatePlayingStates();
+            
+            this._updateDimensions();
 
             if (!this._isActiveState || this.opacity === 0 || this.width <= 1) {
                 this._isActiveState = true;
