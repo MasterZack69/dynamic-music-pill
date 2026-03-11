@@ -16,7 +16,7 @@ class TextFadeEffect extends Clutter.ShaderEffect {
     _init(fadePixels = 32) {
         super._init({ 'shader-type': 1 }); 
         this._fadePixels = fadePixels;
-        this._enableLeft = 1.0;
+        this._enableLeft = 0.0;
         this._enableRight = 1.0;
         this._animId = null;
 
@@ -41,7 +41,7 @@ class TextFadeEffect extends Clutter.ShaderEffect {
 
                 float alpha = min(left_alpha, right_alpha);
 
-                cogl_color_out = vec4(color.rgb * alpha, color.a * alpha);
+                cogl_color_out = vec4(color.rgb * alpha, color.a * alpha) * cogl_color_in;
             }
         `);
     }
@@ -1369,6 +1369,8 @@ class ExpandedPlayer extends St.Widget {
     showFor(player, artUrl) {
 	disableDashToDockAutohide();
         this.setPlayer(player);
+        this._isOpening = true;
+        this._isHiding = false;
         this.visible = true;
         this.opacity = 0;
         this.ease({ opacity: 255, duration: 200, mode: Clutter.AnimationMode.EASE_OUT_QUAD });
@@ -1409,6 +1411,15 @@ class ExpandedPlayer extends St.Widget {
     }
 
     hide() {
+    
+    	if (this._isHiding) return;
+        this._isHiding = true;
+
+        if (this._leaveHideTimeoutId) {
+            GLib.Source.remove(this._leaveHideTimeoutId);
+            this._leaveHideTimeoutId = null;
+        }
+        
 	restoreDashToDockAutohide()
         this._stopTimer();
         this._stopVinyl();
@@ -1693,6 +1704,14 @@ class ExpandedPlayer extends St.Widget {
             if (isCurrentlySafe && Math.abs(targetY - currentY) < 40) targetY = currentY;
 
             if (currentW === menuW && currentX === targetX && currentY === targetY) {
+		this._isOpening = false;
+                return GLib.SOURCE_REMOVE;
+            }
+            
+            if (this._isOpening) {
+                this._box.set_position(targetX, targetY);
+                this._box.set_width(menuW);
+                this._isOpening = false;
                 return GLib.SOURCE_REMOVE;
             }
 
