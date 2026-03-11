@@ -1724,6 +1724,14 @@ class MusicPill extends St.Widget {
         width: 0,
         visible: false
     });
+    this._delegate = { 
+        app: { 
+            get_id: function() { return 'dynamic-music-pill-dummy'; } 
+        } 
+    };
+    this.child = { _delegate: this._delegate };
+    this.app = this._delegate.app;
+    
     this._lastScrollTime = 0;
     this._controller = controller;
     this._settings = controller._settings;
@@ -2096,6 +2104,8 @@ class MusicPill extends St.Widget {
       if (this._singleClickTimerId) { GLib.Source.remove(this._singleClickTimerId); this._singleClickTimerId = null; }
       if (this._idleDimId) { GLib.Source.remove(this._idleDimId); this._idleDimId = null; }
       if (this._cancellable) { this._cancellable.cancel(); this._cancellable = null; }
+  }
+  animateOutAndDestroy() {
   }
   
   _handleLeftClick() {
