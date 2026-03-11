@@ -1387,6 +1387,15 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
                        "• Fixed floating menu alignment issues when using Dash to Dock.\n" +
                        "• Fixed Dash to Dock aligment when tried to change an icon position.\n" +
                        "• Fixed and issue with Strawberry player where the art image didn't loaded."
+            },
+            {
+                version: "V27",
+                subtitle: "Small Features and Fixes",
+                expanded: false,
+                notes: "• Added Double Click Mouse Actin\n" +
+                       "• Added Always ON mode\n" +
+                       "• Fixed an issue where the seek bar become glitchy\n" +
+                       "• Fixed a huge CPU drain with dash to dock autohide mode"
             },     
         	{
                 version: "V26",
