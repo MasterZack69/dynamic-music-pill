@@ -138,7 +138,13 @@ export class MusicController {
             }
             return GLib.SOURCE_CONTINUE;
         });
-        
+        this._itemDragBeginId = Main.overview.connect('item-drag-begin', () => {
+            this._isUserDragging = true;
+        });
+        this._itemDragEndId = Main.overview.connect('item-drag-end', () => {
+            this._isUserDragging = false;
+            this._queueInject(); 
+        });
         this._updateDefaultPlayerVisibility();
         this._createLyricProxy();
         this._settings.connectObject('changed::enable-lyrics', () => {
@@ -158,6 +164,15 @@ export class MusicController {
         if (this._startupCompleteId) {
             Main.layoutManager.disconnect(this._startupCompleteId);
             this._startupCompleteId = null;
+        }
+        
+        if (this._itemDragBeginId) {
+            Main.overview.disconnect(this._itemDragBeginId);
+            this._itemDragBeginId = null;
+        }
+        if (this._itemDragEndId) {
+            Main.overview.disconnect(this._itemDragEndId);
+            this._itemDragEndId = null;
         }
 
         if (this._currentDock) {
@@ -485,7 +500,7 @@ export class MusicController {
     }
 
     _ensurePosition(container) {
-        if (!container || this._isMovingItem) return false;
+        if (!container || this._isMovingItem || this._isUserDragging) return false;
 
         let mode = this._settings ? this._settings.get_int('position-mode') : 1;
         let manualIndex = this._settings ? this._settings.get_int('dock-position') : 0;
@@ -507,8 +522,13 @@ export class MusicController {
 
         if (currentIndex !== targetIndex) {
             this._isMovingItem = true;
-            if (currentIndex !== -1) { container.remove_child(this._pill); }
-            container.insert_child_at_index(this._pill, targetIndex);
+            
+            if (currentIndex !== -1) { 
+                container.set_child_at_index(this._pill, targetIndex);
+            } else {
+                container.insert_child_at_index(this._pill, targetIndex);
+            }
+
             this._isMovingItem = false;
             return true;
         }
@@ -576,8 +596,18 @@ export class MusicController {
             const pill = this._pill;
 
             let pillWidth = 0;
+            let adjustedX = x; 
+
             if (pill && pill.get_parent() === container) {
                 pillWidth = pill.get_width();
+                let pillX = pill.x;
+                
+                if (x > pillX + pillWidth) {
+                    adjustedX -= pillWidth;
+                } 
+                else if (x >= pillX && x <= pillX + pillWidth) {
+                    adjustedX = pillX;
+                }
             }
 
             if (pillWidth > 0) {
@@ -591,7 +621,7 @@ export class MusicController {
             let ret;
             try {
                 ret = dash._musicPillOrigHandleDragOver.call(
-                    dash, source, actor, x, y, time);
+                    dash, source, actor, adjustedX, y, time);
             } finally {
                 if (pillWidth > 0) {
                     delete container.width;
