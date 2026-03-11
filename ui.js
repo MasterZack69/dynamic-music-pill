@@ -2620,8 +2620,6 @@ class MusicPill extends St.Widget {
         this._lyricObj = null;
         let tempTitle = title || this._origTitle;
         let tempArtist = artist || this._origArtist;
-        if (this._titleScroll) this._titleScroll.setText(tempTitle || '', true, 0);
-        if (this._artistScroll) this._artistScroll.setText(tempArtist || '', true);
         
         let anyPlaying = false;
         if (this._controller && this._controller._proxies) {
@@ -2639,6 +2637,17 @@ class MusicPill extends St.Widget {
         let isManuallySelected = (manualBus !== '' && busName === manualBus);
         
         let shouldKeepOpen = alwaysShow || anyPlaying || isManuallySelected;
+
+        if (shouldKeepOpen && (!tempTitle || tempTitle === '')) {
+            tempTitle = _('No Media');
+            tempArtist = _('Waiting for playback...');
+            
+            this._targetColor = { r: 40, g: 40, b: 40 };
+            this._lastArtUrl = null;
+        }
+
+        if (this._titleScroll) this._titleScroll.setText(tempTitle || '', true, 0);
+        if (this._artistScroll) this._artistScroll.setText(tempArtist || '', true);
 
         if (shouldKeepOpen) {
             this._origTitle = tempTitle;
