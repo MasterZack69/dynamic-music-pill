@@ -2,7 +2,7 @@
 <schemalist>
   <schema id="org.gnome.shell.extensions.dynamic-music-pill" path="/org/gnome/shell/extensions/dynamic-music-pill/" gettext-domain="dynamic-music-pill">
     <key name="edge-margin" type="i">
-      <default>6</default>
+      <default>8</default>
       <range min="0" max="50"/>
       <summary>Edge Margin (Outer Padding)</summary>
       <description>Distance before the album art and after the visualizer.</description>
