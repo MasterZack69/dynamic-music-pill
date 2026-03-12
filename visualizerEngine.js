@@ -19,8 +19,7 @@ export class SharedVisualizerEngine {
     }
 
     constructor() {
-        this._subscribers = [];
-        this._isPlaying = false;
+        this._subscribers = new Map(); // callback -> isPlaying
         this._cavaProcess = null;
         this._fixedBarCount = 64; 
         
@@ -30,25 +29,32 @@ export class SharedVisualizerEngine {
     }
 
     subscribe(callback) {
-        if (!this._subscribers.includes(callback)) {
-            this._subscribers.push(callback);
+        if (!this._subscribers.has(callback)) {
+            this._subscribers.set(callback, false);
         }
-        if (this._isPlaying && !this._cavaProcess) {
-            this.startCava();
-        }
+        this._evaluatePlayback();
     }
 
     unsubscribe(callback) {
-        this._subscribers = this._subscribers.filter(cb => cb !== callback);
-        if (this._subscribers.length === 0) {
-            this.stopCava();
+        this._subscribers.delete(callback);
+        this._evaluatePlayback();
+    }
+
+    setPlaying(callback, playing) {
+        if (this._subscribers.has(callback)) {
+            this._subscribers.set(callback, playing);
+            this._evaluatePlayback();
         }
     }
 
-    setPlaying(playing) {
-        this._isPlaying = playing;
-        if (playing && this._subscribers.length > 0) {
-            this.startCava();
+    _evaluatePlayback() {
+        let anyPlaying = false;
+        for (let isPlaying of this._subscribers.values()) {
+            if (isPlaying) { anyPlaying = true; break; }
+        }
+
+        if (anyPlaying) {
+            if (!this._cavaProcess) this.startCava();
         } else {
             this.stopCava();
             this._broadcast(new Array(this._fixedBarCount).fill(0), true);
@@ -179,7 +185,7 @@ export class SharedVisualizerEngine {
     }
 
     _broadcast(data, isSilent) {
-        for (let cb of this._subscribers) {
+        for (let cb of this._subscribers.keys()) {
             cb(data, isSilent);
         }
     }
