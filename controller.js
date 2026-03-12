@@ -102,11 +102,14 @@ export class MusicController {
         this._pill = new MusicPill(this);
         this._pill.connect('destroy', () => {
             this._pill = null;
-            this._queueInject();
+            if (!this._isShuttingDown) {
+                this._queueInject();
+            }
         });
     }
 
     enable() {
+        this._isShuttingDown = false;
         this._createPill();
         initDTDModule();
         
@@ -164,6 +167,7 @@ export class MusicController {
     }
 
     disable() {
+        this._isShuttingDown = true;
         if (this._startupCompleteId) {
             Main.layoutManager.disconnect(this._startupCompleteId);
             this._startupCompleteId = null;
