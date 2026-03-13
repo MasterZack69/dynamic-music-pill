@@ -8,6 +8,7 @@ import Gio from 'gi://Gio';
 import Pango from 'gi://Pango';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { formatTime, getAverageColor, smartUnpack, getClosestGnomeAccent, disableDashToDockAutohide, restoreDashToDockAutohide, getPlayerIcon } from './utils.js';
+import { COPY_ICON_RESET_DELAY, COPY_ICON_FADE_IN_DURATION, COPY_ICON_FADE_OUT_DURATION, SUBPAGE_ANIM_IN_DURATION, SUBPAGE_ANIM_OUT_DURATION, SUBPAGE_BACK_BTN_WIDTH, SUBPAGE_HEADER_ICON_SIZE } from './constants.js';
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { SharedVisualizerEngine } from './visualizerEngine.js';
 import { getMixerControl } from 'resource:///org/gnome/shell/ui/status/volume.js';
@@ -908,6 +909,14 @@ class ExpandedPlayer extends St.Widget {
             }
             return Clutter.EVENT_PROPAGATE;
         }, this);
+        this.connectObject('key-press-event', (actor, event) => {
+            if (event.get_key_symbol() === Clutter.KEY_Escape) {
+                if (this._currentSubPage) this._popPage();
+                else this.hide();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
         this.add_child(this._backgroundBtn);
 
         this._box = new PixelSnappedBox({
@@ -917,8 +926,28 @@ class ExpandedPlayer extends St.Widget {
         this._box.layout_manager.orientation = Clutter.Orientation.VERTICAL;
         this._box.connectObject('button-press-event',  () => Clutter.EVENT_STOP, this);
         this._box.connectObject('button-release-event', (actor, event) => {
-            if (event.get_button() === 8 && this._currentSubPage) { this._popPage(); }
+            if (event.get_button() === 8) {
+                if (this._currentSubPage) this._popPage();
+                else this.hide();
+                return Clutter.EVENT_STOP;
+            }
             return Clutter.EVENT_STOP;
+        }, this);
+        this._box.connectObject('scroll-event', (actor, event) => {
+            let dir = event.get_scroll_direction();
+            let doBack = false;
+            if (dir === Clutter.ScrollDirection.SMOOTH) {
+                let [dx, dy] = event.get_scroll_delta();
+                if (Math.abs(dx) > Math.abs(dy) && dx > 0.3) doBack = true;
+            } else if (dir === Clutter.ScrollDirection.RIGHT) {
+                doBack = true;
+            }
+            if (doBack) {
+                if (this._currentSubPage) this._popPage();
+                else this.hide();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
         }, this);
         this._box.connectObject('touch-event',          () => Clutter.EVENT_STOP, this);
         this._currentSubPage = null;
@@ -1021,6 +1050,7 @@ class ExpandedPlayer extends St.Widget {
 	this._sliderBin.add_child(this._sliderFill);
 
         this._sliderBin.connectObject('button-release-event', (actor, event) => {
+            if (event.get_button() === 8) return Clutter.EVENT_PROPAGATE;
             this._handleSeek(event);
             return Clutter.EVENT_STOP;
         }, this);
@@ -1043,29 +1073,29 @@ class ExpandedPlayer extends St.Widget {
         this._shuffleIcon = new St.Icon({ icon_name: 'media-playlist-shuffle-symbolic', icon_size: 16 });
         this._shuffleBtn = new St.Button({ style_class: 'control-btn-secondary', child: this._shuffleIcon, reactive: true, can_focus: true });
         _addBtnPressAnim(this._shuffleBtn);
-        this._shuffleBtn.connectObject('button-release-event', () => { this._controller.toggleShuffle(); return Clutter.EVENT_STOP; }, this);
+        this._shuffleBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; this._controller.toggleShuffle(); return Clutter.EVENT_STOP; }, this);
         this._shuffleBtn.connectObject('touch-event', (actor, event) => { if (event.type() === Clutter.EventType.TOUCH_END) { this._controller.toggleShuffle(); return Clutter.EVENT_STOP; } return Clutter.EVENT_PROPAGATE; }, this);
 
         this._prevBtn = new St.Button({ style_class: 'control-btn', child: new St.Icon({ icon_name: 'media-skip-backward-symbolic', icon_size: 24 }), reactive: true, can_focus: true });
         _addBtnPressAnim(this._prevBtn);
-        this._prevBtn.connectObject('button-release-event', () => { this._controller.previous(); return Clutter.EVENT_STOP; }, this);
+        this._prevBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; this._controller.previous(); return Clutter.EVENT_STOP; }, this);
         this._prevBtn.connectObject('touch-event', (actor, event) => { if (event.type() === Clutter.EventType.TOUCH_END) { this._controller.previous(); return Clutter.EVENT_STOP; } return Clutter.EVENT_PROPAGATE; }, this);
 
         this._playPauseIcon = new St.Icon({ icon_name: 'media-playback-start-symbolic', icon_size: 24 });
         this._playPauseBtn = new St.Button({ style_class: 'control-btn', child: this._playPauseIcon, reactive: true, can_focus: true });
         _addBtnPressAnim(this._playPauseBtn);
-        this._playPauseBtn.connectObject('button-release-event', () => { this._controller.togglePlayback(); return Clutter.EVENT_STOP; }, this);
+        this._playPauseBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; this._controller.togglePlayback(); return Clutter.EVENT_STOP; }, this);
         this._playPauseBtn.connectObject('touch-event', (actor, event) => { if (event.type() === Clutter.EventType.TOUCH_END) { this._controller.togglePlayback(); return Clutter.EVENT_STOP; } return Clutter.EVENT_PROPAGATE; }, this);
 
         this._nextBtn = new St.Button({ style_class: 'control-btn', child: new St.Icon({ icon_name: 'media-skip-forward-symbolic', icon_size: 24 }), reactive: true, can_focus: true });
         _addBtnPressAnim(this._nextBtn);
-        this._nextBtn.connectObject('button-release-event', () => { this._controller.next(); return Clutter.EVENT_STOP; }, this);
+        this._nextBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; this._controller.next(); return Clutter.EVENT_STOP; }, this);
         this._nextBtn.connectObject('touch-event', (actor, event) => { if (event.type() === Clutter.EventType.TOUCH_END) { this._controller.next(); return Clutter.EVENT_STOP; } return Clutter.EVENT_PROPAGATE; }, this);
 
         this._repeatIcon = new St.Icon({ icon_name: 'media-playlist-repeat-symbolic', icon_size: 16 });
         this._repeatBtn = new St.Button({ style_class: 'control-btn-secondary', child: this._repeatIcon, reactive: true, can_focus: true });
         _addBtnPressAnim(this._repeatBtn);
-        this._repeatBtn.connectObject('button-release-event', () => { this._controller.toggleLoop(); return Clutter.EVENT_STOP; }, this);
+        this._repeatBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; this._controller.toggleLoop(); return Clutter.EVENT_STOP; }, this);
         this._repeatBtn.connectObject('touch-event', (actor, event) => { if (event.type() === Clutter.EventType.TOUCH_END) { this._controller.toggleLoop(); return Clutter.EVENT_STOP; } return Clutter.EVENT_PROPAGATE; }, this);
 
         this._customBtn1 = new St.Button({
@@ -1088,6 +1118,7 @@ class ExpandedPlayer extends St.Widget {
 
         const _makeCustomBtnHandler = (getActionFn, isBtn1) => {
             return (actor, event) => {
+                if (event.get_button() === 8) return Clutter.EVENT_PROPAGATE;
                 let action = getActionFn();
                 if (action === 'seek_step' && this._bothButtonsAreSeekStep()) {
 
@@ -1182,7 +1213,8 @@ class ExpandedPlayer extends St.Widget {
             style: `border-radius: 12px; padding: 8px; background-color: ${currentSelected === '' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)'}; transition-duration: 150ms;`
         });
         
-        autoBtn.connectObject('button-release-event', () => {
+        autoBtn.connectObject('button-release-event', (a, e) => {
+            if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE;
             this._settings.set_string('selected-player-bus', '');
             this._controller._updateUI();
             this._updatePlayerSelector(); 
@@ -1225,7 +1257,8 @@ class ExpandedPlayer extends St.Widget {
                 style: `border-radius: 12px; padding: 8px; background-color: ${isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)'}; transition-duration: 150ms;` 
             });
 
-            btn.connectObject('button-release-event', () => {
+            btn.connectObject('button-release-event', (a, e) => {
+                if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE;
                 this._settings.set_string('selected-player-bus', busName);
                 this._controller._updateUI();
                 this._updatePlayerSelector(); 
@@ -1584,22 +1617,35 @@ class ExpandedPlayer extends St.Widget {
 
         let { tc, ta } = this._getPageColors();
 
+        let pillCol = (this._controller._pill && this._controller._pill._displayedColor)
+            ? this._controller._pill._displayedColor : { r: 255, g: 255, b: 255 };
+
         let page = new St.BoxLayout({
             vertical: true, x_expand: true, y_expand: true,
             clip_to_allocation: true,
-            style: 'padding: 6px 8px 8px 8px; margin: 4px; border-radius: 20px; background-color: rgba(255,255,255,0.04);'
+            style: `padding: 2px 8px 8px 8px; margin: 4px; border-radius: 20px; background-color: rgba(${pillCol.r},${pillCol.g},${pillCol.b},0.07);`
         });
         this._currentSubPage = page;
         page.translation_x = 32;
         page.opacity = 0;
 
-        let header = new St.BoxLayout({ vertical: false, style: 'spacing: 8px; margin-bottom: 2px;' });
+        // Header wrapper: [headerRow] + gap + [1px line]
+        let headerWrapper = new St.BoxLayout({
+            vertical: true, x_expand: true, y_expand: false,
+            y_align: Clutter.ActorAlign.START,
+            style: 'spacing: 4px; margin-bottom: 6px; min-height: 0;'
+        });
+        let header = new St.BoxLayout({
+            vertical: false, x_expand: true, y_expand: false,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'min-height: 0;'
+        });
 
         let backBtn = new St.Button({
             reactive: true, can_focus: true,
-            style_class: 'control-btn-secondary',
-            child: new St.Icon({ icon_name: 'go-previous-symbolic', icon_size: 16 }),
-            style: 'padding: 5px 9px;'
+            style_class: 'subpage-back-btn',
+            child: new St.Icon({ icon_name: 'go-previous-symbolic', icon_size: 14 }),
+            y_align: Clutter.ActorAlign.CENTER
         });
         _addBtnPressAnim(backBtn);
         const _doBack = () => this._popPage();
@@ -1609,31 +1655,59 @@ class ExpandedPlayer extends St.Widget {
             if (e.type() === Clutter.EventType.TOUCH_END) { _doBack(); return Clutter.EVENT_STOP; }
             return Clutter.EVENT_PROPAGATE;
         }, page);
-
         header.add_child(backBtn);
-        if (iconName) header.add_child(new St.Icon({ icon_name: iconName, icon_size: 16, style: `color:${tc}; margin-top:1px;` }));
-        header.add_child(new St.Label({
+
+        let titleGroup = new St.BoxLayout({
+            vertical: false,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'spacing: 5px;'
+        });
+        if (iconName) titleGroup.add_child(new St.Icon({ icon_name: iconName, icon_size: SUBPAGE_HEADER_ICON_SIZE, style: `color:${tc};` }));
+        titleGroup.add_child(new St.Label({
             text: title, y_align: Clutter.ActorAlign.CENTER,
             style: `font-weight: bold; font-size: 11pt; color: ${tc};`
         }));
+        let titleBin = new St.Bin({
+            x_expand: true, y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER,
+            child: titleGroup
+        });
+        header.add_child(titleBin);
 
-        page.add_child(header);
+        // Mirror spacer: fixed width matching backBtn
+        let mirrorSpacer = new St.Widget({ reactive: false, y_align: Clutter.ActorAlign.CENTER, width: SUBPAGE_BACK_BTN_WIDTH });
+        header.add_child(mirrorSpacer);
+
+        headerWrapper.add_child(header);
+        headerWrapper.add_child(new St.Widget({
+            x_expand: true, height: 1,
+            style: 'background-color: rgba(255,255,255,0.13);'
+        }));
+        page.add_child(headerWrapper);
 
         let contentScroll = new St.ScrollView({
             x_expand: true, y_expand: true,
+            reactive: true,
             hscrollbar_policy: St.PolicyType.NEVER,
             vscrollbar_policy: St.PolicyType.AUTOMATIC,
-            overlay_scrollbars: true
+            overlay_scrollbars: false
         });
         let contentBox = new St.BoxLayout({ vertical: true, x_expand: true, style: 'spacing: 10px;' });
         contentScroll.set_child(contentBox);
         page.add_child(contentScroll);
 
-        buildFn(contentBox, tc, ta);
+        buildFn(contentBox, tc, ta, page);
         this._box.add_child(page);
-        page.ease({
-            translation_x: 0, opacity: 255,
-            duration: 220, mode: Clutter.AnimationMode.EASE_OUT_QUAD
+        // Defer animation until after allocation – avoids "Can't update stage views actor... needs an allocation"
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            if (page.get_parent() && page === this._currentSubPage) {
+                page.ease({
+                    translation_x: 0, opacity: 255,
+                    duration: SUBPAGE_ANIM_IN_DURATION, mode: Clutter.AnimationMode.EASE_OUT_QUAD
+                });
+            }
+            return false;
         });
     }
 
@@ -1643,7 +1717,7 @@ class ExpandedPlayer extends St.Widget {
         this._currentSubPage = null;
         p.ease({
             translation_x: 32, opacity: 0,
-            duration: 180, mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            duration: SUBPAGE_ANIM_OUT_DURATION, mode: Clutter.AnimationMode.EASE_IN_QUAD,
             onStopped: () => {
                 if (p.get_parent()) p.get_parent().remove_child(p);
                 p.destroy();
@@ -1699,11 +1773,11 @@ class ExpandedPlayer extends St.Widget {
         }
     }
     _showVolumePopup() {
-        this._pushPage(_('Volume'), 'audio-volume-high-symbolic', (page, tc, ta) => {
+        this._pushPage(_('Volume'), 'audio-volume-high-symbolic', (contentBox, tc, ta, subpage) => {
             let mixer  = getMixerControl();
             let stream = mixer ? mixer.get_default_sink() : null;
             let maxVol = mixer ? mixer.get_vol_max_norm() : 65536;
-            if (!stream) { page.add_child(new St.Label({ text: _('No audio stream available'), style: `color:${ta};` })); return; }
+            if (!stream) { contentBox.add_child(new St.Label({ text: _('No audio stream available'), style: `color:${ta};` })); return; }
             let frac0 = stream.is_muted ? 0 : Math.min(1, stream.volume / maxVol);
 
             let sliderRow = new St.BoxLayout({ vertical: false, style: 'spacing: 10px;', x_expand: true });
@@ -1741,12 +1815,12 @@ class ExpandedPlayer extends St.Widget {
                 muteBtn.label = stream.is_muted ? _('Unmute') : _('Mute');
             };
 
-            stream.connectObject('notify::volume', syncFromStream, page);
-            stream.connectObject('notify::is-muted', syncFromStream, page);
+            stream.connectObject('notify::volume', syncFromStream, subpage);
+            stream.connectObject('notify::is-muted', syncFromStream, subpage);
 
-            sliderBg.connectObject('button-press-event',   (a,e)=>{ sliderBg._drag=true;  drag(e); return Clutter.EVENT_STOP; }, page);
-            sliderBg.connectObject('button-release-event', ()   =>{ sliderBg._drag=false; return Clutter.EVENT_STOP; }, page);
-            sliderBg.connectObject('motion-event',         (a,e)=>{ if(sliderBg._drag) drag(e); return Clutter.EVENT_STOP; }, page);
+            sliderBg.connectObject('button-press-event',   (a,e)=>{ if(e.get_button()===8) return Clutter.EVENT_PROPAGATE; sliderBg._drag=true;  drag(e); return Clutter.EVENT_STOP; }, subpage);
+            sliderBg.connectObject('button-release-event', (a,e)=>{ if(e.get_button()===8) return Clutter.EVENT_PROPAGATE; sliderBg._drag=false; return Clutter.EVENT_STOP; }, subpage);
+            sliderBg.connectObject('motion-event',         (a,e)=>{ if(sliderBg._drag) drag(e); return Clutter.EVENT_STOP; }, subpage);
 
             global.stage.connectObject('captured-event', (stage, ev) => {
                 let t = ev.type();
@@ -1756,28 +1830,28 @@ class ExpandedPlayer extends St.Widget {
                     sliderBg._drag = false;
                 }
                 return Clutter.EVENT_PROPAGATE;
-            }, page);
-            sliderBg.connectObject('touch-event', (a,e)=>{ let t=e.type(); if(t===Clutter.EventType.TOUCH_BEGIN||t===Clutter.EventType.TOUCH_UPDATE){drag(e);return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
+            }, subpage);
+            sliderBg.connectObject('touch-event', (a,e)=>{ let t=e.type(); if(t===Clutter.EventType.TOUCH_BEGIN||t===Clutter.EventType.TOUCH_UPDATE){drag(e);return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
 
             sliderRow.add_child(sliderBg);
             sliderRow.add_child(volLabel);
-            page.add_child(sliderRow);
+            contentBox.add_child(sliderRow);
 
             const doMute = () => { stream.change_is_muted(!stream.is_muted); };
-            muteBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-            muteBtn.connectObject('button-release-event', () => { doMute(); return Clutter.EVENT_STOP; }, page);
-            muteBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doMute();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
-            page.add_child(muteBtn);
+            muteBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, subpage);
+            muteBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; doMute(); return Clutter.EVENT_STOP; }, subpage);
+            muteBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doMute();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
+            contentBox.add_child(muteBtn);
 
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => { if(!sliderBg.get_parent()) return GLib.SOURCE_REMOVE; upd(frac0); return GLib.SOURCE_REMOVE; });
         });
     }
 
     _showSeekStepPopup() {
-        this._pushPage(_('Seek'), 'media-seek-forward-symbolic', (page, tc, ta) => {
+        this._pushPage(_('Seek'), 'media-seek-forward-symbolic', (contentBox, tc, ta, subpage) => {
             let caps = this._controller.getPlayerCapabilities();
             if (!caps.canSeek) {
-                page.add_child(new St.Label({
+                contentBox.add_child(new St.Label({
                     text: _('This player does not support seeking'),
                     style: `color:${ta};font-size:9pt;margin-bottom:4px;`,
                     x_align: Clutter.ActorAlign.CENTER
@@ -1792,24 +1866,24 @@ class ExpandedPlayer extends St.Widget {
                 });
                 _addBtnPressAnim(btn);
                 const doIt = () => { this._controller.seekStep(fwd); this._popPage(); };
-                btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-                btn.connectObject('button-release-event', () => { doIt(); return Clutter.EVENT_STOP; }, page);
-                btn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doIt();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
+                btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, subpage);
+                btn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; doIt(); return Clutter.EVENT_STOP; }, subpage);
+                btn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doIt();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
                 return btn;
             };
             row.add_child(mkBtn('media-seek-backward-symbolic', false));
             row.add_child(mkBtn('media-seek-forward-symbolic',  true));
-            page.add_child(row);
+            contentBox.add_child(row);
         });
     }
 
     _showOutputPopup() {
-        this._pushPage(_('Audio Output'), 'audio-card-symbolic', (page, tc, ta) => {
+        this._pushPage(_('Audio Output'), 'audio-card-symbolic', (contentBox, tc, ta, subpage) => {
             let mixer = getMixerControl();
-            if (!mixer) { page.add_child(new St.Label({ text: _('Audio control unavailable'), style: `color:${ta};` })); return; }
+            if (!mixer) { contentBox.add_child(new St.Label({ text: _('Audio control unavailable'), style: `color:${ta};` })); return; }
             let defaultSink = mixer.get_default_sink();
             let sinks = mixer.get_sinks();
-            if (!sinks || sinks.length === 0) { page.add_child(new St.Label({ text: _('No output devices found'), style: `color:${ta};` })); return; }
+            if (!sinks || sinks.length === 0) { contentBox.add_child(new St.Label({ text: _('No output devices found'), style: `color:${ta};` })); return; }
             sinks.forEach(sink => {
                 let isDef = defaultSink && (sink.id === defaultSink.id);
                 let desc = sink.get_description() || sink.get_name() || _('Unknown Device');
@@ -1821,10 +1895,10 @@ class ExpandedPlayer extends St.Widget {
                 let btn = new St.Button({ child: row, x_expand: true, reactive: true, can_focus: true, style: `border-radius:12px;padding:10px 12px;margin-bottom:4px;background-color:${isDef?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.07)'};` });
                 _addBtnPressAnim(btn);
                 const doIt = () => { mixer.set_default_sink(sink); this._popPage(); };
-                btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-                btn.connectObject('button-release-event', () => { doIt(); return Clutter.EVENT_STOP; }, page);
-                btn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doIt();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
-                page.add_child(btn);
+                btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, subpage);
+                btn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; doIt(); return Clutter.EVENT_STOP; }, subpage);
+                btn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doIt();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
+                contentBox.add_child(btn);
             });
         });
     }
@@ -1833,45 +1907,55 @@ class ExpandedPlayer extends St.Widget {
         let ctrl = this._controller;
         let isActive = ctrl._sleepTimerActive;
         let remaining = ctrl.getSleepTimerRemaining();
-        let title = isActive ? `${_('Sleep Timer')} (${Math.ceil(remaining/60)} ${_('min left')})` : _('Sleep Timer');
-        this._pushPage(title, 'alarm-symbolic', (page, tc, ta) => {
+        let title = isActive ? (_('Sleep Timer') + ' (' + Math.ceil(remaining/60) + ' ' + _('min left') + ')') : _('Sleep Timer');
+        this._pushPage(title, 'alarm-symbolic', (contentBox, tc, ta, subpage) => {
             if (isActive) {
-                let cancelBtn = new St.Button({ label: _('Cancel Timer'), x_expand: true, reactive: true, can_focus: true, style: `border-radius:12px;padding:9px 12px;margin-bottom:8px;background-color:rgba(210,50,50,0.35);color:${tc};` });
+                let cancelBtn = new St.Button({ label: _('Cancel Timer'), x_expand: true, reactive: true, can_focus: true, style: 'border-radius:12px;padding:9px 12px;margin-bottom:8px;background-color:rgba(210,50,50,0.35);color:' + tc + ';' });
                 _addBtnPressAnim(cancelBtn);
                 const doCancel = () => { ctrl.cancelSleepTimer(); this._updateCustomButtons(); this._popPage(); };
-                cancelBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-                cancelBtn.connectObject('button-release-event', () => { doCancel(); return Clutter.EVENT_STOP; }, page);
-                cancelBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doCancel();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
-                page.add_child(cancelBtn);
+                cancelBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, subpage);
+                cancelBtn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; doCancel(); return Clutter.EVENT_STOP; }, subpage);
+                cancelBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doCancel();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
+                contentBox.add_child(cancelBtn);
             }
             let presets = [5, 10, 15, 20, 30, 45, 60, 90];
             [[0,4],[4,8]].forEach(([s,e]) => {
                 let row = new St.BoxLayout({ vertical: false, style: 'spacing: 8px;', x_align: Clutter.ActorAlign.CENTER });
                 presets.slice(s,e).forEach(min => {
-                    let btn = new St.Button({ label: `${min}m`, reactive: true, can_focus: true, style: `border-radius:12px;padding:8px 12px;min-width:42px;background-color:rgba(255,255,255,0.1);color:${tc};` });
+                    let btnLabel = new St.Label({ text: min + 'm', y_align: Clutter.ActorAlign.CENTER, style: 'color:' + tc + ';' });
+                    let btn = new St.Button({ child: btnLabel, reactive: true, can_focus: true, style: 'border-radius:12px;padding:8px 12px;min-width:42px;background-color:rgba(255,255,255,0.1);' });
                     _addBtnPressAnim(btn);
-                    const doTimer = (m) => { ctrl.startSleepTimer(m); this._updateCustomButtons(); this._popPage(); };
-                    btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-                    btn.connectObject('button-release-event', () => { doTimer(min); return Clutter.EVENT_STOP; }, page);
-                    btn.connectObject('touch-event', (a,ev)=>{ if(ev.type()===Clutter.EventType.TOUCH_END){doTimer(min);return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
+                    const doTimer = (m, b, lbl) => {
+                        lbl.text = '\u2713';
+                        b.set_style('border-radius:12px;padding:8px 12px;min-width:42px;background-color:rgba(255,255,255,0.38);');
+                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                            ctrl.startSleepTimer(m);
+                            this._updateCustomButtons();
+                            this._popPage();
+                            return GLib.SOURCE_REMOVE;
+                        });
+                    };
+                    btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, subpage);
+                    btn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; doTimer(min, btn, btnLabel); return Clutter.EVENT_STOP; }, subpage);
+                    btn.connectObject('touch-event', (a,ev)=>{ if(ev.type()===Clutter.EventType.TOUCH_END){doTimer(min,btn,btnLabel);return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
                     row.add_child(btn);
                 });
-                page.add_child(row);
+                contentBox.add_child(row);
             });
-            page.add_child(new St.Label({ text: _('Runs inside the shell \u2014 works on lock screen'), style: `color:${ta};font-size:8pt;margin-top:2px;`, x_align: Clutter.ActorAlign.CENTER }));
+            contentBox.add_child(new St.Label({ text: _('Runs inside the shell \u2014 works on lock screen'), style: 'color:' + ta + ';font-size:8pt;margin-top:2px;', x_align: Clutter.ActorAlign.CENTER }));
         });
     }
 
     _showSpeedPopup() {
-        this._pushPage(_('Playback Speed'), 'power-profile-performance-symbolic', (page, tc, ta) => {
+        this._pushPage(_('Playback Speed'), 'power-profile-performance-symbolic', (contentBox, tc, ta, subpage) => {
             let caps = this._controller.getPlayerCapabilities();
             let rates = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
             let currentRate = this._controller.getPlaybackRate();
 
             if (!caps.canChangeRate) {
-                page.add_child(new St.Label({
+                contentBox.add_child(new St.Label({
                     text: _('This player does not support playback speed'),
-                    style: `color:${ta};font-size:9pt;margin-bottom:4px;`,
+                    style: 'color:' + ta + ';font-size:9pt;margin-bottom:4px;',
                     x_align: Clutter.ActorAlign.CENTER
                 }));
             }
@@ -1880,50 +1964,142 @@ class ExpandedPlayer extends St.Widget {
                 let row = new St.BoxLayout({ vertical: false, style: 'spacing: 8px;', x_align: Clutter.ActorAlign.CENTER });
                 rates.slice(s,e).forEach(rate => {
                     let isAct = Math.abs(rate - currentRate) < 0.05;
+                    let btnLabel = new St.Label({ text: rate + '\u00d7', y_align: Clutter.ActorAlign.CENTER, style: 'color:' + tc + ';font-weight:' + (isAct ? 'bold' : 'normal') + ';' });
+                    let btnBox = new St.BoxLayout({ vertical: false, style: 'spacing:4px;', y_align: Clutter.ActorAlign.CENTER, x_align: Clutter.ActorAlign.CENTER });
+                    if (isAct) {
+                        let checkIco = new St.Icon({ icon_name: 'object-select-symbolic', icon_size: 12, style: 'color:' + tc + ';' });
+                        btnBox.add_child(checkIco);
+                    }
+                    btnBox.add_child(btnLabel);
                     let btn = new St.Button({
-                        label: `${rate}\u00d7`, can_focus: true,
+                        child: btnBox, can_focus: true,
                         reactive: caps.canChangeRate,
-                        style: `border-radius:12px;padding:8px 12px;min-width:42px;background-color:${isAct?'rgba(255,255,255,0.28)':'rgba(255,255,255,0.08)'};color:${tc};font-weight:${isAct?'bold':'normal'};opacity:${caps.canChangeRate?1:0.35};`
+                        style: 'border-radius:12px;padding:8px 14px;min-width:42px;background-color:' + (isAct ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.08)') + ';opacity:' + (caps.canChangeRate ? 1 : 0.35) + ';'
                     });
                     _addBtnPressAnim(btn);
-                    const doRate = (r) => { this._controller.setPlaybackRate(r); this._popPage(); };
-                    btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-                    btn.connectObject('button-release-event', () => { doRate(rate); return Clutter.EVENT_STOP; }, page);
-                    btn.connectObject('touch-event', (a,ev)=>{ if(ev.type()===Clutter.EventType.TOUCH_END){doRate(rate);return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
+                    const doRate = (r, b, lbl) => {
+                        lbl.text = '\u2713';
+                        b.set_style('border-radius:12px;padding:8px 14px;min-width:42px;background-color:rgba(255,255,255,0.38);');
+                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                            this._controller.setPlaybackRate(r);
+                            this._popPage();
+                            return GLib.SOURCE_REMOVE;
+                        });
+                    };
+                    btn.connectObject('button-press-event', () => Clutter.EVENT_STOP, subpage);
+                    btn.connectObject('button-release-event', (a, e) => { if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE; doRate(rate, btn, btnLabel); return Clutter.EVENT_STOP; }, subpage);
+                    btn.connectObject('touch-event', (a,ev)=>{ if(ev.type()===Clutter.EventType.TOUCH_END){doRate(rate,btn,btnLabel);return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, subpage);
                     row.add_child(btn);
                 });
-                page.add_child(row);
+                contentBox.add_child(row);
             });
             let hint = caps.canChangeRate ? _('Player must support MPRIS Rate') : _('Not supported by this player');
-            page.add_child(new St.Label({ text: hint, style: `color:${ta};font-size:8pt;margin-top:2px;`, x_align: Clutter.ActorAlign.CENTER }));
+            contentBox.add_child(new St.Label({ text: hint, style: 'color:' + ta + ';font-size:8pt;margin-top:2px;', x_align: Clutter.ActorAlign.CENTER }));
         });
     }
 
     _showHistoryPopup() {
-        this._pushPage(_('Recently Played'), 'document-open-recent-symbolic', (page, tc, ta) => {
+        this._pushPage(_('Recently Played'), 'document-open-recent-symbolic', (contentBox, tc, ta) => {
             let history = this._controller.getTrackHistory();
-            if (!history || history.length === 0) { page.add_child(new St.Label({ text: _('No history yet'), style: `color:${ta};` })); return; }
+            if (!history || history.length === 0) { contentBox.add_child(new St.Label({ text: _('No history yet'), style: `color:${ta};` })); return; }
+
+            let subpage = contentBox.get_parent()?.get_parent();
+            let copyTimeouts = [];
+            let copyIcons = [];
+
+            const fmtTime = (ms) => {
+                if (!ms) return '';
+                let d = new Date(ms);
+                let now = new Date();
+                let diffH = (now - d) / 3600000;
+                if (diffH < 24) {
+                    let hh = d.getHours().toString().padStart(2,'0');
+                    let mm = d.getMinutes().toString().padStart(2,'0');
+                    return hh + ':' + mm;
+                } else {
+                    let mo = (d.getMonth()+1).toString().padStart(2,'0');
+                    let dd = d.getDate().toString().padStart(2,'0');
+                    return mo + '.' + dd;
+                }
+            };
+
             history.slice(0, 20).forEach(track => {
-                let row = new St.BoxLayout({ vertical: false, style: 'spacing: 10px;', x_expand: true });
-                let thumb = new St.Widget({ width: 40, height: 40, style: track.artUrl ? `background-image:url("${track.artUrl}");background-size:cover;border-radius:6px;` : `background-color:rgba(128,128,128,0.2);border-radius:6px;` });
-                row.add_child(thumb);
+                let c = track.avgColor;
+                let rowBg = (c && typeof c.r === 'number')
+                    ? ('background-color:rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.28);')
+                    : 'background-color:rgba(128,128,128,0.10);';
+
+                let innerRow = new St.BoxLayout({ vertical: false, style: 'spacing: 10px;', x_expand: true });
+                let thumb = new St.Widget({ width: 38, height: 38, style: track.artUrl ? ('background-image:url("' + track.artUrl + '");background-size:cover;border-radius:6px;') : 'background-color:rgba(128,128,128,0.2);border-radius:6px;' });
+                innerRow.add_child(thumb);
+
                 let infoBox = new St.BoxLayout({ vertical: true, x_expand: true, style: 'spacing:1px;', y_align: Clutter.ActorAlign.CENTER });
-                infoBox.add_child(new St.Label({ text: (track.title||_('Unknown')).substring(0,44), style: `color:${tc};font-weight:600;font-size:9.5pt;`, x_expand: true }));
-                let art = (track.artist||'').substring(0,38);
-                if (art) infoBox.add_child(new St.Label({ text: art, style: `color:${ta};font-size:8.5pt;` }));
-                row.add_child(infoBox);
-                page.add_child(row);
+                infoBox.add_child(new St.Label({ text: (track.title||_('Unknown')).substring(0,38), style: 'color:' + tc + ';font-weight:600;font-size:9.5pt;', x_expand: true }));
+                let art = (track.artist||'').substring(0,34);
+                if (art) infoBox.add_child(new St.Label({ text: art, style: 'color:' + ta + ';font-size:8.5pt;' }));
+                innerRow.add_child(infoBox);
+
+                let rightCol = new St.BoxLayout({ vertical: true, y_align: Clutter.ActorAlign.CENTER, style: 'spacing:4px;' });
+                let tsLabel = new St.Label({ text: fmtTime(track.time), style: 'color:' + ta + ';font-size:7.5pt;', x_align: Clutter.ActorAlign.END });
+                let copyIcon = new St.Icon({ icon_name: 'edit-copy-symbolic', icon_size: 13, style: 'color:' + ta + ';', x_align: Clutter.ActorAlign.END });
+                rightCol.add_child(tsLabel);
+                rightCol.add_child(copyIcon);
+                innerRow.add_child(rightCol);
+
+                let rowBtn = new St.Button({
+                    child: innerRow, x_expand: true, reactive: true, can_focus: true,
+                    style: rowBg + ' border-radius:10px; padding:8px 10px; margin-bottom:4px;'
+                });
+                _addBtnPressAnim(rowBtn);
+
+                copyIcons.push(copyIcon);
+                const doCopy = () => {
+                    let text = track.title || '';
+                    if (track.artist) text += ' - ' + track.artist;
+                    St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+                    copyIcon.icon_name = 'object-select-symbolic';
+                    copyIcon.opacity = 0;
+                    copyIcon.ease({ opacity: 255, duration: COPY_ICON_FADE_IN_DURATION, mode: Clutter.AnimationMode.EASE_OUT_QUAD });
+                    let tid = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COPY_ICON_RESET_DELAY, () => {
+                        const idx = copyTimeouts.indexOf(tid);
+                        if (idx >= 0) copyTimeouts.splice(idx, 1);
+                        if (!copyIcon.get_parent()) return GLib.SOURCE_REMOVE;
+                        copyIcon.ease({ opacity: 0, duration: COPY_ICON_FADE_OUT_DURATION, mode: Clutter.AnimationMode.EASE_IN_QUAD, onStopped: () => {
+                            if (copyIcon.get_parent()) { copyIcon.icon_name = 'edit-copy-symbolic'; copyIcon.opacity = Math.round(255*0.6); }
+                        }});
+                        return GLib.SOURCE_REMOVE;
+                    });
+                    copyTimeouts.push(tid);
+                };
+                rowBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, contentBox);
+                rowBtn.connectObject('button-release-event', (a, e) => {
+                    if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE;
+                    doCopy();
+                    return Clutter.EVENT_STOP;
+                }, contentBox);
+                rowBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doCopy();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, contentBox);
+                contentBox.add_child(rowBtn);
             });
+
+            if (subpage) subpage.connect('destroy', () => {
+                copyTimeouts.forEach(id => GLib.Source.remove(id));
+                copyIcons.forEach(icon => { icon.remove_transition('opacity'); });
+            });
+
             let clearBtn = new St.Button({
                 label: _('Clear History'), x_expand: true, reactive: true, can_focus: true,
-                style: `border-radius:12px;padding:9px 12px;margin-top:6px;background-color:rgba(210,50,50,0.35);color:${tc};`
+                style: 'border-radius:12px;padding:9px 12px;margin-top:6px;background-color:rgba(210,50,50,0.35);color:' + tc + ';'
             });
             _addBtnPressAnim(clearBtn);
             const doClear = () => { this._controller.clearTrackHistory(); this._popPage(); };
-            clearBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-            clearBtn.connectObject('button-release-event', () => { doClear(); return Clutter.EVENT_STOP; }, page);
-            clearBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doClear();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, page);
-            page.add_child(clearBtn);
+            clearBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, contentBox);
+            clearBtn.connectObject('button-release-event', (a, e) => {
+                if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE;
+                doClear();
+                return Clutter.EVENT_STOP;
+            }, contentBox);
+            clearBtn.connectObject('touch-event', (a,e)=>{ if(e.type()===Clutter.EventType.TOUCH_END){doClear();return Clutter.EVENT_STOP;} return Clutter.EVENT_PROPAGATE; }, contentBox);
+            contentBox.add_child(clearBtn);
         });
     }
 
@@ -1934,6 +2110,7 @@ class ExpandedPlayer extends St.Widget {
         this._isHiding = false;
         this.visible = true;
         this.opacity = 0;
+        this.grab_key_focus();
         this.ease({ opacity: 255, duration: 200, mode: Clutter.AnimationMode.EASE_OUT_QUAD });
 
         let status = player.PlaybackStatus;
@@ -3468,6 +3645,14 @@ class MusicPill extends St.Widget {
                   let stream = Gio.MemoryInputStream.new_from_bytes(bytes);
                   let pixbuf = GdkPixbuf.Pixbuf.new_from_stream(stream, null);
                   this._targetColor = getAverageColor(pixbuf);
+
+                  if (this._controller && this._controller._trackHistory && this._controller._trackHistory.length > 0) {
+                      let entry = this._controller._trackHistory[0];
+                      if (!entry.avgColor) {
+                          entry.avgColor = { r: Math.round(this._targetColor.r), g: Math.round(this._targetColor.g), b: Math.round(this._targetColor.b) };
+                          try { this._controller._settings.set_string('playback-history', JSON.stringify(this._controller._trackHistory)); } catch(e) {}
+                      }
+                  }
                   
                   try {
                       if (this._interfaceSettings && this._settings.get_boolean('sync-accent-color')) {
@@ -3581,13 +3766,32 @@ export const PlayerSelectorMenu = GObject.registerClass(
 class PlayerSelectorMenu extends St.Widget {
     _init(controller) {
         let [bgW, bgH] = global.display.get_size();
-        super._init({ width: bgW, height: bgH, reactive: true, visible: false, x: 0, y: 0 });
+        super._init({ width: bgW, height: bgH, reactive: true, can_focus: true, visible: false, x: 0, y: 0 });
 
         this._controller = controller;
         this._settings = controller._settings;
 
         this._backgroundBtn = new St.Button({ style: 'background-color: transparent;', reactive: true, x_expand: true, y_expand: true, width: bgW, height: bgH });
         this._backgroundBtn.connectObject('clicked', () => { this.hide(); }, this);
+        this._backgroundBtn.connectObject('button-release-event', (actor, event) => {
+            if (event.get_button() === 8) { this.hide(); return Clutter.EVENT_STOP; }
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
+        this.connectObject('key-press-event', (actor, event) => {
+            if (event.get_key_symbol() === Clutter.KEY_Escape) { this.hide(); return Clutter.EVENT_STOP; }
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
+        this._backgroundBtn.connectObject('scroll-event', (actor, event) => {
+            let dir = event.get_scroll_direction();
+            if (dir === Clutter.ScrollDirection.SMOOTH) {
+                let [dx, dy] = event.get_scroll_delta();
+                if (Math.abs(dx) > Math.abs(dy) && dx > 0.3) { this.hide(); return Clutter.EVENT_STOP; }
+            } else if (dir === Clutter.ScrollDirection.RIGHT) {
+                this.hide();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
         this.add_child(this._backgroundBtn);
 
         this._box = new St.BoxLayout({ reactive: true });
@@ -3613,6 +3817,24 @@ class PlayerSelectorMenu extends St.Widget {
                     return GLib.SOURCE_REMOVE;
                 });
             }
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
+
+        this._box.connectObject('button-release-event', (actor, event) => {
+            if (event.get_button() === 8) { this.hide(); return Clutter.EVENT_STOP; }
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
+
+        this._box.connectObject('scroll-event', (actor, event) => {
+            let dir = event.get_scroll_direction();
+            let doBack = false;
+            if (dir === Clutter.ScrollDirection.SMOOTH) {
+                let [dx, dy] = event.get_scroll_delta();
+                if (Math.abs(dx) > Math.abs(dy) && dx > 0.3) doBack = true;
+            } else if (dir === Clutter.ScrollDirection.RIGHT) {
+                doBack = true;
+            }
+            if (doBack) { this.hide(); return Clutter.EVENT_STOP; }
             return Clutter.EVENT_PROPAGATE;
         }, this);
 
@@ -3677,6 +3899,10 @@ class PlayerSelectorMenu extends St.Widget {
         });
         _addBtnPressAnim(autoBtn);
         
+        autoBtn.connectObject('button-release-event', (a, e) => {
+            if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_PROPAGATE;
+        }, this);
         autoBtn.connectObject('clicked', () => {
             this._settings.set_string('selected-player-bus', '');
             this._controller._updateUI();
@@ -3730,6 +3956,10 @@ class PlayerSelectorMenu extends St.Widget {
             });
             _addBtnPressAnim(btn);
 
+            btn.connectObject('button-release-event', (a, e) => {
+                if (e.get_button() === 8) return Clutter.EVENT_PROPAGATE;
+                return Clutter.EVENT_PROPAGATE;
+            }, this);
             btn.connectObject('clicked', () => {
                 this._settings.set_string('selected-player-bus', busName);
                 this._controller._updateUI();
@@ -3761,6 +3991,7 @@ class PlayerSelectorMenu extends St.Widget {
         this.populate();
         this.visible = true;
         this.opacity = 0;
+        this.grab_key_focus();
         this.ease({ opacity: 255, duration: 200, mode: Clutter.AnimationMode.EASE_OUT_QUAD });
 
         let pill = this._controller._pill;
