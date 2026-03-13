@@ -1429,9 +1429,23 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
 
         const changelog = [
         	{
-                version: "V29 - Latest Update",
-                subtitle: "Real-Time Visualizer, App Mapping & Major Fixes",
+                version: "V30 - Latest Update",
+                subtitle: "Custom Buttons & Bug Fixes",
                 expanded: true,
+                notes: "✨ New Features:\n" +
+                       "• Custom Control Buttons: Add up to two extra buttons to the pop-up controls row. Each can be assigned to Volume, Seek Step, Audio Output, Sleep Timer, Playback Speed, or Recently Played history.\n" +
+                       "• First-Time Hint: A one-time tip in the pop-up suggests checking settings for more options (custom buttons, scroll actions, etc.). Dismissible with a click or via the settings button.\n\n" +
+                       "🐛 Bug Fixes:\n" +
+                       "• Fixed two pills appearing in the dock (could occur unreliably after Lock and Unlock).\n" +
+                       "• Fixed duplicate title and artist display.\n" +
+                       "• Fixed visualizer failing to update when transitioning between pill and pop-up with Dash to Dock.\n" +
+                       "• Fixed history scroll area being covered and unclickable (switched to non-overlay scrollbars).\n" +
+                       "• Fixed first-time hint buttons (Settings, X) not responding to clicks."
+            },
+            {
+                version: "V29",
+                subtitle: "Real-Time Visualizer, App Mapping & Major Fixes",
+                expanded: false,
                 notes: "✨ New Features:\n" +
                        "• Real-Time Visualizer: Added CAVA-powered real-time audio visualizer!\n" +
                        "• Accent Color Sync: Dynamically change the GNOME accent color to match the current album art.\n" +
@@ -1455,7 +1469,7 @@ export default class DynamicMusicPrefs extends ExtensionPreferences {
                        "• Fixed Dash to Dock aligment when tried to change an icon position.\n" +
                        "• Fixed and issue with Strawberry player where the art image didn't loaded."
             },
-            {
+        	{
                 version: "V27",
                 subtitle: "Small Features and Fixes",
                 expanded: false,
