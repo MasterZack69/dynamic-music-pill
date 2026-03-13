@@ -2,7 +2,7 @@
 <schemalist>
   <schema id="org.gnome.shell.extensions.dynamic-music-pill" path="/org/gnome/shell/extensions/dynamic-music-pill/" gettext-domain="dynamic-music-pill">
     <key name="edge-margin" type="i">
-      <default>8</default>
+      <default>6</default>
       <range min="0" max="50"/>
       <summary>Edge Margin (Outer Padding)</summary>
       <description>Distance before the album art and after the visualizer.</description>
@@ -336,6 +336,27 @@
     <key name="action-double-click" type="s">
       <default>'open_player_menu'</default>
       <summary>none</summary>
+    </key>
+
+    <key name="enable-custom-buttons" type="b">
+      <default>false</default>
+      <summary>Enable Custom Control Buttons</summary>
+      <description>Show up to two additional customizable buttons in the expanded player controls row.</description>
+    </key>
+    <key name="custom-button-1" type="s">
+      <default>'none'</default>
+      <summary>Custom Button 1 Action</summary>
+      <description>The action triggered by custom button 1. Options: none, volume, seek_step, output_switch, sleep_timer, playback_speed, history.</description>
+    </key>
+    <key name="custom-button-2" type="s">
+      <default>'none'</default>
+      <summary>Custom Button 2 Action</summary>
+      <description>The action triggered by custom button 2. Options: none, volume, seek_step, output_switch, sleep_timer, playback_speed, history.</description>
+    </key>
+    <key name="playback-history" type="s">
+      <default>'[]'</default>
+      <summary>Playback History</summary>
+      <description>JSON array of recently played tracks (title, artist, artUrl, time).</description>
     </key>
   </schema>
 </schemalist>
