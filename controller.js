@@ -116,14 +116,16 @@ export class MusicController {
     }
 
     _createPill() {
-    if (this._pill) return;
+        if (this._pill || this._isShuttingDown || this._isCreatingPill) return;
+        this._isCreatingPill = true;
         this._pill = new MusicPill(this);
         this._pill.connect('destroy', () => {
             this._pill = null;
-            if (!this._isShuttingDown) {
+            if (!this._isShuttingDown && !this._isCreatingPill) {
                 this._queueInject();
             }
         });
+        this._isCreatingPill = false;
     }
 
     enable() {
@@ -572,6 +574,10 @@ export class MusicController {
 
     _inject() {
         if (this._isMovingItem) return;
+        if (this._injectTimeout) {
+            GLib.Source.remove(this._injectTimeout);
+            this._injectTimeout = null;
+        }
         if (!this._pill) this._createPill();
         if (!this._pill) return;
 
@@ -610,6 +616,15 @@ export class MusicController {
         }
 
         let moved = this._ensurePosition(container);
+
+        let pills = container.get_children().filter(
+            c => c !== this._pill && c instanceof MusicPill
+        );
+        for (let p of pills) {
+            console.debug('[Dynamic Music Pill] Removing duplicate pill from container');
+            container.remove_child(p);
+            p.destroy();
+        }
 
         if (parentChanged || moved || !oldParent) {
             this._pill._updateDimensions();
