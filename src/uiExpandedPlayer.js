@@ -1374,7 +1374,7 @@ export const ExpandedPlayer = GObject.registerClass(
                 (conn, res) => {
                     let result = conn.call_finish(res);
                     let val = smartUnpack(result.deep_unpack()[0]);
-                    if (typeof val === 'number') {
+                    if (typeof val === 'number' && val >= 0) {
                         player._lastPosition = val;
                         player._lastPositionTime = Date.now();
                     }
