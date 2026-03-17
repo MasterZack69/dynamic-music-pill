@@ -823,8 +823,11 @@ export class MusicController {
                         }
 
                         if (keys.Position !== undefined) {
-                            p._lastPosition = keys.Position;
-                            p._lastPositionTime = now;
+                            let posVal = keys.Position instanceof GLib.Variant ? keys.Position.unpack() : keys.Position;
+                            if (typeof posVal === 'number' && posVal >= 0) {
+                                p._lastPosition = posVal;
+                                p._lastPositionTime = now;
+                            }
                             this._triggerUpdate();
                             return;
                         }
