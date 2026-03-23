@@ -5,7 +5,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-03-23 23:42+0100\n"
 "PO-Revision-Date: 2026-03-25 00:09+0000\n"
-"Last-Translator: László András <laszlo2002andras@gmail.com>\n"
+"Last-Translator: elmagio <mistermagio@gmail.com>\n"
 "Language-Team: French <https://hosted.weblate.org/projects/dynamic-music-"
 "pill/settings/fr/>\n"
 "Language: fr\n"
@@ -186,7 +186,7 @@ msgstr "Afficher la pochette de la chanson en cours"
 
 #: prefs.js:69
 msgid "Fallback Album Art"
-msgstr "Image d’Album par Défaut"
+msgstr "Pochette par défaut"
 
 #: prefs.js:70 prefs.js:110
 msgid "No image selected"
@@ -328,7 +328,7 @@ msgstr ""
 
 #: prefs.js:281
 msgid "Show \"Title • Artist\" when the widget is squeezed"
-msgstr "Afficher \"Titre• Artiste\" quand le widget est réduit"
+msgstr "Afficher \"Morceau • Artiste\" quand le widget est comprimé"
 
 #: prefs.js:288
 msgid "Compact Mode (Hide Text)"
