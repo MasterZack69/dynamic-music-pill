@@ -154,10 +154,10 @@ export const ExpandedPlayer = GObject.registerClass(
                 y_align: Clutter.ActorAlign.CENTER
             });
             topRow.add_child(this._vinylBin);
-            
-            this._vinylBin.reactive    = true;
+
+            this._vinylBin.reactive = true;
             this._vinylBin.track_hover = true;
-            this._vinyl.reactive       = true;
+            this._vinyl.reactive = true;
 
             this._vinylBin.connectObject('enter-event', () => {
                 this._vinyl.ease({ opacity: 175, duration: 150, mode: Clutter.AnimationMode.EASE_OUT_QUAD });
@@ -1045,8 +1045,8 @@ export const ExpandedPlayer = GObject.registerClass(
                 }
             });
         }
-        
-       _showLyricsPage() {
+
+        _showLyricsPage() {
             if (this._currentSubPage) return;
 
             this._savedBoxHeight = this._box.height;
@@ -1057,13 +1057,13 @@ export const ExpandedPlayer = GObject.registerClass(
                 ? this._controller._pill._displayedColor : { r: 40, g: 40, b: 40 };
 
             let brightness = (pillCol.r * 299 + pillCol.g * 587 + pillCol.b * 114) / 1000;
-            let isDark     = brightness <= 160;
-            let btnRgb     = isDark ? '255,255,255' : '0,0,0';
-            let iconClr    = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(30,30,30,0.92)';
+            let isDark = brightness <= 160;
+            let btnRgb = isDark ? '255,255,255' : '0,0,0';
+            let iconClr = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(30,30,30,0.92)';
 
             let followRadius = this._settings.get_boolean('popup-follow-radius');
-            let rawRadius    = followRadius ? this._settings.get_int('border-radius') : 24;
-            let dynRadius    = (typeof rawRadius === 'number' && !isNaN(rawRadius)) ? rawRadius : 24;
+            let rawRadius = followRadius ? this._settings.get_int('border-radius') : 24;
+            let dynRadius = (typeof rawRadius === 'number' && !isNaN(rawRadius)) ? rawRadius : 24;
 
             let page = new St.Widget({
                 layout_manager: new Clutter.BinLayout(),
@@ -1085,7 +1085,7 @@ export const ExpandedPlayer = GObject.registerClass(
                 let tid = smartUnpack(m['mpris:trackid']);
                 if (tid) trackId = tid;
                 let positionMicro = Math.round(timeMs * 1000);
-                this._player._lastPosition     = positionMicro;
+                this._player._lastPosition = positionMicro;
                 this._player._lastPositionTime = Date.now();
                 if (this._controller && this._controller._connection) {
                     this._controller._connection.call(
@@ -1095,7 +1095,7 @@ export const ExpandedPlayer = GObject.registerClass(
                         'SetPosition',
                         new GLib.Variant('(ox)', [trackId, positionMicro]),
                         null, Gio.DBusCallFlags.NONE, -1, null,
-                        (conn, res) => { try { conn.call_finish(res); } catch (e) {} }
+                        (conn, res) => { try { conn.call_finish(res); } catch (e) { } }
                     );
                 }
             };
@@ -1113,10 +1113,10 @@ export const ExpandedPlayer = GObject.registerClass(
             page.add_child(lyricsWidget);
 
             const _backBtnStyle = (hover, disableAnim = false) =>
-                `width: 32px; height: 32px;` + 
-                `margin: 8px;` +               
+                `width: 32px; height: 32px;` +
+                `margin: 8px;` +
                 `padding: 0px;` +
-                `border-radius: 8px;` +       
+                `border-radius: 8px;` +
                 `background-color: rgba(${btnRgb}, ${hover ? 0.30 : 0.15});` +
                 `border: 1px solid rgba(${btnRgb}, ${hover ? 0.20 : 0.10});` +
                 (disableAnim ? `transition-duration: 0ms;` : `transition-duration: 140ms;`);
@@ -1145,10 +1145,10 @@ export const ExpandedPlayer = GObject.registerClass(
                 if (!backBtn.get_parent() || page !== this._currentSubPage) return;
                 backBtn.set_style(_backBtnStyle(backBtn.hover));
             });
-            
+
             _addBtnPressAnim(backBtn);
             backBtn.connectObject('button-press-event', () => Clutter.EVENT_STOP, page);
-            
+
             const _doBack = () => {
                 backBtn.set_style(_backBtnStyle(false, true));
                 this._popPage();
@@ -1159,7 +1159,7 @@ export const ExpandedPlayer = GObject.registerClass(
                 if (e.type() === Clutter.EventType.TOUCH_END) { _doBack(); return Clutter.EVENT_STOP; }
                 return Clutter.EVENT_PROPAGATE;
             }, page);
-            
+
             page.add_child(backBtnWrapper);
 
             this._lyricsWidget = lyricsWidget;
@@ -1181,10 +1181,10 @@ export const ExpandedPlayer = GObject.registerClass(
             if (this._player) {
                 let m = this._player.Metadata;
                 if (m) {
-                    let fetchTitle  = smartUnpack(m['xesam:title'])  || '';
+                    let fetchTitle = smartUnpack(m['xesam:title']) || '';
                     let fetchArtist = smartUnpack(m['xesam:artist']) || '';
                     if (Array.isArray(fetchArtist)) fetchArtist = fetchArtist.join(', ');
-                    let fetchAlbum  = smartUnpack(m['xesam:album'])  || '';
+                    let fetchAlbum = smartUnpack(m['xesam:album']) || '';
                     let lengthMicro = smartUnpack(m['mpris:length']) || 0;
                     let durationSec = Math.round(lengthMicro / 1_000_000);
 
@@ -1228,8 +1228,8 @@ export const ExpandedPlayer = GObject.registerClass(
 
         _getCurrentPositionMs() {
             if (!this._player) return 0;
-            let now        = Date.now();
-            let cachedPos  = this._player._lastPosition  || 0;
+            let now = Date.now();
+            let cachedPos = this._player._lastPosition || 0;
             let lastUpdate = this._player._lastPositionTime || now;
             let posUs = cachedPos;
             if (this._player.PlaybackStatus === 'Playing')
@@ -1366,6 +1366,7 @@ export const ExpandedPlayer = GObject.registerClass(
                 muteBtn.connectObject('touch-event', (a, e) => { if (e.type() === Clutter.EventType.TOUCH_END) { doMute(); return Clutter.EVENT_STOP; } return Clutter.EVENT_PROPAGATE; }, subpage);
                 contentBox.add_child(muteBtn);
 
+                // Defer initial fill render to avoid allocation warnings
                 GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
                     if (!sliderBg.get_parent() || !subpage.get_parent()) return GLib.SOURCE_REMOVE;
                     if (sliderBg.has_allocation && sliderBg.has_allocation() && sliderBg.get_width() > 0) {
@@ -1459,6 +1460,7 @@ export const ExpandedPlayer = GObject.registerClass(
                             lbl.text = '\u2713';
                             b.set_style('border-radius:12px;padding:8px 12px;min-width:42px;background-color:rgba(255,255,255,0.38);');
                             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                                if (this.is_finalized && this.is_finalized()) return GLib.SOURCE_REMOVE;
                                 ctrl.startSleepTimer(m);
                                 this._updateCustomButtons();
                                 this._popPage();
@@ -1511,6 +1513,7 @@ export const ExpandedPlayer = GObject.registerClass(
                             lbl.text = '\u2713';
                             b.set_style('border-radius:12px;padding:8px 14px;min-width:42px;background-color:rgba(255,255,255,0.38);');
                             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                                if (this.is_finalized && this.is_finalized()) return GLib.SOURCE_REMOVE;
                                 this._controller.setPlaybackRate(r);
                                 this._popPage();
                                 return GLib.SOURCE_REMOVE;
@@ -1726,9 +1729,10 @@ export const ExpandedPlayer = GObject.registerClass(
             if (this._updateTimer) { GLib.Source.remove(this._updateTimer); this._updateTimer = null; }
             if (this._resizeDebounceId) { GLib.Source.remove(this._resizeDebounceId); this._resizeDebounceId = null; }
             if (this._leaveHideTimeoutId) { GLib.Source.remove(this._leaveHideTimeoutId); this._leaveHideTimeoutId = null; }
+            if (this._artVisibilityTimer) { GLib.Source.remove(this._artVisibilityTimer); this._artVisibilityTimer = null; }
             if (this._currentSubPage) { this._currentSubPage.destroy(); this._currentSubPage = null; }
             if (this._lyricsTimerId) { GLib.Source.remove(this._lyricsTimerId); this._lyricsTimerId = null; }
-            if (this._lyricsClient)  { this._lyricsClient.destroy(); this._lyricsClient = null; }
+            if (this._lyricsClient) { this._lyricsClient.destroy(); this._lyricsClient = null; }
             this._lyricsWidget = null;
         }
 
@@ -1751,84 +1755,89 @@ export const ExpandedPlayer = GObject.registerClass(
         }
 
         _tick() {
-          try {
-            if (!this._player || !this.get_parent()) return GLib.SOURCE_REMOVE;
+            try {
+                if (!this._player || !this.get_parent()) return GLib.SOURCE_REMOVE;
 
-            let meta = this._player.Metadata;
-            let length = meta ? smartUnpack(meta['mpris:length']) : 0;
-            if (length <= 0) return;
+                let meta = this._player.Metadata;
+                let length = meta ? smartUnpack(meta['mpris:length']) : 0;
+                if (length <= 0) return;
 
-            let now = Date.now();
-            if (now - this._seekLockTime < 2000) return GLib.SOURCE_CONTINUE;
+                let now = Date.now();
+                if (now - this._seekLockTime < 2000) return GLib.SOURCE_CONTINUE;
 
-            // Periodically sync position from DBus to keep _lastPositionTime fresh
-            if (this._player.PlaybackStatus === 'Playing' &&
-                (!this._lastPositionSync || now - this._lastPositionSync > 5000)) {
-                this._lastPositionSync = now;
-                if (this._controller) this._controller._syncPosition(this._player);
-            }
-
-            let cachedPos = this._player._lastPosition || 0;
-            let lastUpdate = this._player._lastPositionTime || now;
-
-
-            let isStale = false;
-            if (this._player.PlaybackStatus === 'Playing') {
-                if (cachedPos === (this._lastTickPosition || 0) && (now - lastUpdate) > 6000
-                    && this._lastTickTime && (now - this._lastTickTime) > 6000) {
-                    isStale = true;
+                // Periodically sync position from DBus to keep _lastPositionTime fresh
+                // Most MPRIS players don't push Position updates, only send Seeked on seek
+                if (this._player.PlaybackStatus === 'Playing' &&
+                    (!this._lastPositionSync || now - this._lastPositionSync > 5000)) {
+                    this._lastPositionSync = now;
+                    if (this._controller) this._controller._syncPosition(this._player);
                 }
-                if (cachedPos !== (this._lastTickPosition || 0)) this._lastTickTime = now;
-                this._lastTickPosition = cachedPos;
-            }
 
-            let currentPos = cachedPos;
-            if (this._player.PlaybackStatus === 'Playing' && !isStale) {
-                currentPos += (now - lastUpdate) * 1000;
-            }
-            if (currentPos > length) currentPos = length;
+                let cachedPos = this._player._lastPosition || 0;
+                let lastUpdate = this._player._lastPositionTime || now;
 
-            let useHours = length >= 3600000000 && this._settings.get_boolean('show-hours-format');
+                // Stale position detection for KDE Connect / GS Connect
+                // Only triggers when position hasn't been updated by DBus for >6s
+                // AND the raw cached position hasn't changed (rules out normal interpolation)
+                let isStale = false;
+                if (this._player.PlaybackStatus === 'Playing') {
+                    if (cachedPos === (this._lastTickPosition || 0) && (now - lastUpdate) > 6000
+                        && this._lastTickTime && (now - this._lastTickTime) > 6000) {
+                        isStale = true;
+                    }
+                    if (cachedPos !== (this._lastTickPosition || 0)) this._lastTickTime = now;
+                    this._lastTickPosition = cachedPos;
+                }
 
+                let currentPos = cachedPos;
+                if (this._player.PlaybackStatus === 'Playing' && !isStale) {
+                    currentPos += (now - lastUpdate) * 1000;
+                }
+                if (currentPos > length) currentPos = length;
 
-            if (this._lastTickLength && this._lastTickLength !== length) {
-                let prevUseHours = this._lastTickLength >= 3600000000 && this._settings.get_boolean('show-hours-format');
-                if (prevUseHours !== useHours) {
+                let useHours = length >= 3600000000 && this._settings.get_boolean('show-hours-format');
+
+                // Detect track length change (format switch mm:ss <-> hh:mm:ss)
+                // Force label width recalculation when format changes
+                if (this._lastTickLength && this._lastTickLength !== length) {
+                    let prevUseHours = this._lastTickLength >= 3600000000 && this._settings.get_boolean('show-hours-format');
+                    if (prevUseHours !== useHours) {
+                        // Format changed - force width recalc by clearing fixed widths
+                        this._currentTimeLabel.set_width(-1);
+                        this._totalTimeLabel.set_width(-1);
+                    }
+                }
+                this._lastTickLength = length;
+
+                let newCurrentText = isStale ? '--:--' : formatTime(currentPos, useHours);
+                if (this._currentTimeLabel.text !== newCurrentText) {
+                    this._currentTimeLabel.text = newCurrentText;
                     this._currentTimeLabel.set_width(-1);
+                    let [, natWC] = this._currentTimeLabel.get_preferred_width(-1);
+                    this._currentTimeLabel.set_width(Math.ceil(natWC) + 2);
+                }
+                let newTotalText = isStale ? '--:--' : formatTime(length, useHours);
+                if (this._totalTimeLabel.text !== newTotalText) {
+                    this._totalTimeLabel.text = newTotalText;
                     this._totalTimeLabel.set_width(-1);
+                    let [, natWT] = this._totalTimeLabel.get_preferred_width(-1);
+                    this._totalTimeLabel.set_width(Math.ceil(natWT) + 2);
                 }
-            }
-            this._lastTickLength = length;
 
-            let newCurrentText = isStale ? '--:--' : formatTime(currentPos, useHours);
-            if (this._currentTimeLabel.text !== newCurrentText) {
-                this._currentTimeLabel.text = newCurrentText;
-                this._currentTimeLabel.set_width(-1);
-                let [, natWC] = this._currentTimeLabel.get_preferred_width(-1);
-                this._currentTimeLabel.set_width(Math.ceil(natWC) + 2);
-            }
-            let newTotalText = isStale ? '--:--' : formatTime(length, useHours);
-            if (this._totalTimeLabel.text !== newTotalText) {
-                this._totalTimeLabel.text = newTotalText;
-                this._totalTimeLabel.set_width(-1);
-                let [, natWT] = this._totalTimeLabel.get_preferred_width(-1);
-                this._totalTimeLabel.set_width(Math.ceil(natWT) + 2);
-            }
+                if (isStale) return;
 
-            if (isStale) return;
+                let percent = Math.min(1, Math.max(0, currentPos / length));
+                let totalW = Math.round(this._sliderBin.get_width());
 
-            let percent = Math.min(1, Math.max(0, currentPos / length));
-            let totalW = Math.round(this._sliderBin.get_width());
-
-            if (totalW > 0) {
-                let targetWidth = Math.max(6, Math.min(totalW, Math.round(totalW * percent)));
-                if (Math.abs(this._sliderFill.width - targetWidth) >= 1) {
-                    this._sliderFill.width = targetWidth;
+                if (totalW > 0) {
+                    let targetWidth = Math.max(6, Math.min(totalW, Math.round(totalW * percent)));
+                    if (Math.abs(this._sliderFill.width - targetWidth) >= 1) {
+                        this._sliderFill.width = targetWidth;
+                    }
                 }
+            } catch (e) {
+                console.debug(`[Dynamic Music Pill] _tick error: ${e.message}`);
             }
-          } catch (e) {
-              console.debug(`[Dynamic Music Pill] _tick error: ${e.message}`);
-          }
         }
 
         _handleSeek(event) {
